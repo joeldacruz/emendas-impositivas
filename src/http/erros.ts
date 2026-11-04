@@ -35,6 +35,10 @@ export function tratarErro(erro: FastifyError | Error, req: FastifyRequest, repl
       return reply
         .status(422)
         .send({ erro: 'referencia_invalida', mensagem: 'Referência inexistente', restricao: pg.constraint });
+    case '23P01':
+      return reply.status(409).send({ erro: 'vigencia_sobreposta', mensagem: 'A vigência sobrepõe outra já cadastrada' });
+    case '23000':
+      return reply.status(422).send({ erro: 'dado_invalido', mensagem: 'Dado viola regra de integridade' });
     case '23514':
     case '22P02':
       return reply.status(422).send({ erro: 'dado_invalido', mensagem: 'Dado viola regra de integridade' });

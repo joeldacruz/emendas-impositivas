@@ -2,8 +2,10 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import type { Config } from './config/env.js';
 import type { Pool } from './db/pool.js';
 import { tratarErro } from './http/erros.js';
+import { rotasBancadas } from './modules/bancadas/rotas.js';
 import { rotasCadastros } from './modules/cadastros/rotas.js';
 import { rotasEmendas } from './modules/emendas/rotas.js';
+import { rotasParametros } from './modules/parametros/rotas.js';
 import { rotasSaude } from './modules/saude/rotas.js';
 
 export function construirApp(pool: Pool, config: Pick<Config, 'LOG_LEVEL' | 'AMBIENTE'>): FastifyInstance {
@@ -16,6 +18,8 @@ export function construirApp(pool: Pool, config: Pick<Config, 'LOG_LEVEL' | 'AMB
 
   rotasSaude(app, pool, config.AMBIENTE);
   rotasCadastros(app, pool);
+  rotasBancadas(app, pool);
+  rotasParametros(app, pool);
   rotasEmendas(app, pool);
   return app;
 }

@@ -2,14 +2,14 @@
 
 Sistema de gestão de emendas impositivas municipais, inicialmente para a Câmara de Vereadores de Três Barras/SC.
 
-**Fase atual: Fase 2 — esqueleto técnico.** Existe um núcleo mínimo funcional (exercício, parlamentar, emenda, autoria e auditoria). Os demais módulos do [roadmap](docs/05-plano-de-implementacao.md) ainda não foram implementados.
+**Fase atual: Fase 3 — cadastros.** Núcleo funcional: exercício, parlamentar, mandatos, bancadas com composição histórica, emenda com autoria (parlamentar e/ou bancada), parâmetros legais versionados (sempre pendentes até validação) e auditoria. Os demais módulos do [roadmap](docs/05-plano-de-implementacao.md) ainda não foram implementados.
 
 ## Diretriz
 
 - Toda a gestão das emendas é feita **neste sistema**.
 - A integração com **IPM/Atende.Net** se limita à **consulta/importação** da execução orçamentária e financeira. A IPM continua sendo a fonte oficial dos registros contábeis; nunca se escreve no banco dela.
 - Nada aqui presume API, autenticação, layout ou acesso da IPM.
-- Parâmetros jurídicos (percentuais, limites, prazos, bloqueios) estão **PENDENTES DE VALIDAÇÃO** e **não** foram implementados.
+- Parâmetros jurídicos (percentuais, limites, prazos, bloqueios) estão **PENDENTES DE VALIDAÇÃO** e **não** foram implementados. A API só *registra* parâmetros e seu estado de validação; nenhuma rota os usa para calcular, limitar ou bloquear. Nenhum valor jurídico real é semeado.
 
 ## O que já funciona
 
@@ -65,8 +65,17 @@ Escritas exigem o cabeçalho `X-Usuario` (provisório, só para atribuir a audit
 | `GET /saude` | Estado da aplicação e do banco (503 se o banco estiver indisponível) |
 | `GET/POST /exercicios` | Lista / cria exercício |
 | `GET/POST /parlamentares` | Lista / cria parlamentar |
+| `GET/POST /parlamentares/:id/mandatos` | Mandatos; sobreposição para o mesmo parlamentar é recusada (409) |
+| `GET/POST /bancadas` | Lista / cria bancada (nome único por exercício) |
+| `GET/POST /bancadas/:id/membros` | Vínculos com vigência (datas inclusivas, `AAAA-MM-DD`) |
+| `PATCH /bancadas/:id/membros/:membroId` | Só encerra a vigência (`vigenciaFim`); histórico não é reescrito |
+| `GET /bancadas/:id/composicao?data=` | Composição da bancada em uma data |
+| `GET/POST /fontes-normativas` | Fontes normativas (lei, decreto etc.) |
+| `GET/POST /parametros-legais` | Parâmetros versionados; nascem `PENDENTE`; filtros `exercicioId`, `codigo`, `data` |
+| `POST /parametros-legais/:id/validacao` | Muda o status; `VALIDADO` exige fonte normativa e registra validador e data |
+| `POST /parametros-legais/:id/encerrar` | Encerra a vigência (única edição permitida; valor é imutável) |
 | `GET /emendas?exercicioId=` | Lista emendas |
-| `POST /emendas` | Cria emenda com autoria |
+| `POST /emendas` | Cria emenda com autoria: `autores` (parlamentares) e/ou `bancadas`, ao menos um |
 | `GET /emendas/:id` | Lê emenda |
 | `PATCH /emendas/:id` | Altera emenda; exige `versaoEsperada` (409 se desatualizada) |
 | `GET /emendas/:id/auditoria` | Eventos de auditoria da emenda (somente leitura) |

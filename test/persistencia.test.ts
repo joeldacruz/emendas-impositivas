@@ -129,7 +129,7 @@ describe('dados fictícios de desenvolvimento', () => {
       expect((await semearDesenvolvimento(outro.pool)).criado).toBe(true);
       expect((await semearDesenvolvimento(outro.pool)).criado).toBe(false);
       const r = await outro.pool.query('SELECT objeto FROM emenda');
-      expect(r.rowCount).toBe(3);
+      expect(r.rowCount).toBe(4);
       expect(r.rows.every((x) => String(x.objeto).startsWith('[FICTÍCIO]'))).toBe(true);
     } finally {
       await outro.encerrar();

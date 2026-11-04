@@ -18,6 +18,7 @@ export interface Emenda {
   criadoEm: string;
   atualizadoEm: string;
   autores: string[];
+  bancadas: string[];
 }
 
 export interface NovaEmenda {
@@ -27,6 +28,7 @@ export interface NovaEmenda {
   objeto: string;
   valorPropostoCentavos: number;
   autores: string[];
+  bancadas?: string[];
 }
 
 export interface AlteracaoEmenda {
@@ -36,6 +38,7 @@ export interface AlteracaoEmenda {
   objeto?: string;
   valorPropostoCentavos?: number;
   autores?: string[];
+  bancadas?: string[];
 }
 
 interface LinhaEmenda {
@@ -50,13 +53,17 @@ interface LinhaEmenda {
   criado_em: Date;
   atualizado_em: Date;
   autores: string[] | null;
+  bancadas: string[] | null;
 }
 
 const SELECT_EMENDA = `
   SELECT e.*, (
     SELECT array_agg(a.parlamentar_id::text ORDER BY a.parlamentar_id)
-    FROM emenda_autoria a WHERE a.emenda_id = e.id
-  ) AS autores
+    FROM emenda_autoria a WHERE a.emenda_id = e.id AND a.parlamentar_id IS NOT NULL
+  ) AS autores, (
+    SELECT array_agg(a.bancada_id::text ORDER BY a.bancada_id)
+    FROM emenda_autoria a WHERE a.emenda_id = e.id AND a.bancada_id IS NOT NULL
+  ) AS bancadas
   FROM emenda e`;
 
 function mapear(l: LinhaEmenda): Emenda {
@@ -76,6 +83,7 @@ function mapear(l: LinhaEmenda): Emenda {
     criadoEm: l.criado_em.toISOString(),
     atualizadoEm: l.atualizado_em.toISOString(),
     autores: l.autores ?? [],
+    bancadas: l.bancadas ?? [],
   };
 }
 
@@ -100,6 +108,9 @@ export async function criarEmenda(db: PoolClient, dados: NovaEmenda): Promise<Em
   const id = rows[0]!.id;
   for (const parlamentarId of dados.autores) {
     await db.query('INSERT INTO emenda_autoria (emenda_id, parlamentar_id) VALUES ($1, $2)', [id, parlamentarId]);
+  }
+  for (const bancadaId of dados.bancadas ?? []) {
+    await db.query('INSERT INTO emenda_autoria (emenda_id, bancada_id) VALUES ($1, $2)', [id, bancadaId]);
   }
   return (await buscarEmenda(db, id))!;
 }
@@ -135,26 +146,43 @@ export async function alterarEmenda(db: PoolClient, id: string, alt: AlteracaoEm
     await db.query(`UPDATE emenda SET ${sets.join(', ')} WHERE id = $1`, valores);
   }
 
-  if (alt.autores) {
-    const { rows } = await db.query<{ parlamentar_id: string }>(
-      'SELECT parlamentar_id FROM emenda_autoria WHERE emenda_id = $1',
+  if (alt.autores || alt.bancadas) {
+    const { rows } = await db.query<{ parlamentar_id: string | null; bancada_id: string | null }>(
+      'SELECT parlamentar_id, bancada_id FROM emenda_autoria WHERE emenda_id = $1',
       [id],
     );
-    const existentes = new Set(rows.map((r) => r.parlamentar_id));
-    const desejados = new Set(alt.autores);
-    for (const p of existentes) {
-      if (!desejados.has(p)) {
-        await db.query('DELETE FROM emenda_autoria WHERE emenda_id = $1 AND parlamentar_id = $2', [id, p]);
+    const atuais = {
+      parlamentar_id: new Set(rows.flatMap((r) => (r.parlamentar_id ? [r.parlamentar_id] : []))),
+      bancada_id: new Set(rows.flatMap((r) => (r.bancada_id ? [r.bancada_id] : []))),
+    };
+    let mudou = false;
+    for (const [coluna, desejadosLista] of [
+      ['parlamentar_id', alt.autores],
+      ['bancada_id', alt.bancadas],
+    ] as const) {
+      if (!desejadosLista) continue;
+      const existentes = atuais[coluna];
+      const desejados = new Set(desejadosLista);
+      for (const x of existentes) {
+        if (!desejados.has(x)) {
+          await db.query(`DELETE FROM emenda_autoria WHERE emenda_id = $1 AND ${coluna} = $2`, [id, x]);
+          mudou = true;
+        }
       }
-    }
-    for (const p of desejados) {
-      if (!existentes.has(p)) {
-        await db.query('INSERT INTO emenda_autoria (emenda_id, parlamentar_id) VALUES ($1, $2)', [id, p]);
+      for (const x of desejados) {
+        if (!existentes.has(x)) {
+          await db.query(`INSERT INTO emenda_autoria (emenda_id, ${coluna}) VALUES ($1, $2)`, [id, x]);
+          mudou = true;
+        }
       }
     }
     // Mudança só de autoria também deve gerar nova versão da emenda.
-    if (sets.length === 0 && (existentes.size !== desejados.size || [...desejados].some((p) => !existentes.has(p)))) {
+    if (sets.length === 0 && mudou) {
       await db.query('UPDATE emenda SET atualizado_em = now() WHERE id = $1', [id]);
+    }
+    const restantes = await db.query('SELECT 1 FROM emenda_autoria WHERE emenda_id = $1 LIMIT 1', [id]);
+    if (!restantes.rowCount) {
+      throw new ErroNegocio(422, 'sem_autoria', 'A emenda precisa ter ao menos um autor (parlamentar ou bancada)');
     }
   }
   return (await buscarEmenda(db, id))!;
