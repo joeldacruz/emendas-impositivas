@@ -18,7 +18,7 @@
 11. **Hospedagem, backup e implantação:** não decididos; sem deploy nesta fase.
 12. **Docker em máquina de desenvolvimento:** o `docker-compose.yml` não pôde ser executado no ambiente desta fase (Docker Desktop não iniciou). A validação local usou PostgreSQL embutido; o CI usa PostgreSQL 16 em contêiner. Conferir o compose em máquina com Docker.
 13. **Porta 3000:** reservada/ocupada em algumas máquinas Windows; a porta padrão da API é 3100.
-14. Anexos e documentos (armazenamento, classificação interno/publicável) ainda sem modelo implementado.
+14. ~~Anexos e documentos~~ — metadados e classificação entregues na Fase 5; o **armazenamento do arquivo** continua pendente (item 31).
 
 ## Abertas na Fase 3
 
@@ -37,3 +37,14 @@
 24. **Soma dos beneficiários ≤ valor proposto:** é regra de consistência de dados, não norma jurídica; confirmar se a soma deve ser obrigatoriamente igual ao valor da emenda.
 25. **Cancelamento:** irreversível por desenho, sem fluxo de reabertura. Corrigir um cancelamento indevido exigirá procedimento definido.
 26. **Versão da emenda:** protege os campos da emenda e a autoria; beneficiários e identificadores externos mudam sem incrementar `versao` (têm trilha própria na auditoria).
+
+## Abertas na Fase 5
+
+27. **Rito e prazos legais:** a tramitação é livre (título, responsável e prazo digitados). O sistema não conhece etapas nem calcula prazos; "atrasada" é só comparação de datas. Modelar o rito real exige validação jurídica.
+28. **Responsável como texto:** sem cadastro de usuários/setores (depende de autenticação e papéis).
+29. **Critério do plano:** só se confere consistência (há itens; total ≤ valor da emenda). Exigências de conteúdo do plano de trabalho e de análise dependem da norma.
+30. **Itens fracionários:** a quantidade é inteira para manter o total exato. Se houver quantidades fracionárias (m², horas), definir a unidade mínima. Há teto técnico de R$ 10 bilhões por item.
+31. **Armazenamento de arquivos:** só metadados e SHA-256; falta decidir onde guardar (disco, objeto, retenção, antivírus, backup) e como enviar/baixar com controle de acesso.
+32. **Publicação de documentos:** `publicavel` é só um marcador com justificativa; ainda não há portal nem rotina que o utilize. Quem pode publicar depende de papéis.
+33. **Plano e execução física:** o realizado de um marco é um registro simples; a execução física completa (medições, evidências) é a Fase 7.
+34. **Registros permanentes:** tramitação, diligência, parecer, documento e plano não podem ser apagados, nem corrigidos (só encerrados/cancelados ou substituídos). Falta definir procedimento para correção de erro de digitação.

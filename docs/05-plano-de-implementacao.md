@@ -23,7 +23,7 @@ Exercícios, parâmetros versionados (todos marcados como não validados), parla
 Emenda com ID interno, número oficial, identificadores externos, autoria múltipla, objeto, valores, beneficiários. Sem bloqueios jurídicos até a validação.
 **Aceite:** ciclo completo de cadastro e edição com auditoria.
 
-## Fase 5 — Planos, tramitação e documentos
+## Fase 5 — Planos, tramitação e documentos (entregue em PR; aguardando revisão)
 Plano de trabalho, metas, itens, cronogramas; pareceres, diligências, prazos; classificação de publicidade.
 
 ## Fase 6 — Integração IPM (conforme viabilidade)
