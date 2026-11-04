@@ -48,3 +48,8 @@
 32. **Publicação de documentos:** `publicavel` é só um marcador com justificativa; ainda não há portal nem rotina que o utilize. Quem pode publicar depende de papéis.
 33. **Plano e execução física:** o realizado de um marco é um registro simples; a execução física completa (medições, evidências) é a Fase 7.
 34. **Registros permanentes:** tramitação, diligência, parecer, documento e plano não podem ser apagados, nem corrigidos (só encerrados/cancelados ou substituídos). Falta definir procedimento para correção de erro de digitação.
+
+## Correções da revisão dos PRs 1–4 (migração 0005)
+
+35. **Auditoria da cadeia do plano:** metas, itens e marcos passaram a registrar `emenda_id` (resolvido pela cadeia marco → item → meta → plano → emenda) e um CHECK `NOT VALID` exige isso para novos eventos. Eventos gerados *antes* da 0005 ficam com `emenda_id` nulo, pois a auditoria é append-only e não pode ser corrigida; só existem em bancos de desenvolvimento/homologação criados com a 0004 — sem produção, nada a migrar. Se algum ambiente tiver dados reais, decidir com a Câmara se vale um procedimento controlado de reparo.
+36. **Valor da emenda x plano vigente:** reduzir `valor_proposto_centavos` abaixo do total do plano vigente é rejeitado pelo banco (422 na API; valor, versão e plano permanecem). A trava cobre a concorrência com a ativação do plano. Aumentar o valor nunca é bloqueado. Planos em rascunho ou substituídos não bloqueiam a redução, mas um rascunho acima do novo valor só poderá ser ativado depois de ajustado.
