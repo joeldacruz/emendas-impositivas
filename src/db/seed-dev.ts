@@ -1,0 +1,51 @@
+import { criarEmenda } from '../modules/emendas/repositorio.js';
+import type { Pool } from './pool.js';
+import { comTransacao } from './transacao.js';
+
+/**
+ * Dados 100% fictícios, apenas para desenvolvimento. Nomes, objetos e valores são inventados;
+ * não representam parlamentares, emendas ou valores reais. Idempotente.
+ */
+export async function semearDesenvolvimento(pool: Pool): Promise<{ criado: boolean }> {
+  return comTransacao(pool, { usuario: 'seed-desenvolvimento', origem: 'seed' }, async (c) => {
+    const existente = await c.query("SELECT 1 FROM parlamentar WHERE nome LIKE '[FICTÍCIO]%' LIMIT 1");
+    if (existente.rowCount) return { criado: false };
+
+    const ex = await c.query<{ id: string }>(
+      'INSERT INTO exercicio (ano) VALUES (2099) ON CONFLICT (ano) DO UPDATE SET ano = EXCLUDED.ano RETURNING id',
+    );
+    const exercicioId = ex.rows[0]!.id;
+
+    const ids: string[] = [];
+    for (const nome of ['[FICTÍCIO] Parlamentar A', '[FICTÍCIO] Parlamentar B', '[FICTÍCIO] Parlamentar C']) {
+      const r = await c.query<{ id: string }>('INSERT INTO parlamentar (nome) VALUES ($1) RETURNING id', [nome]);
+      ids.push(r.rows[0]!.id);
+    }
+    const [a, b, cc] = ids as [string, string, string];
+
+    await criarEmenda(c, {
+      exercicioId,
+      numeroOficial: 'FICT-001',
+      tipo: 'individual',
+      objeto: '[FICTÍCIO] Aquisição de equipamentos de exemplo',
+      valorPropostoCentavos: 1_000_000,
+      autores: [a],
+    });
+    await criarEmenda(c, {
+      exercicioId,
+      numeroOficial: 'FICT-002',
+      tipo: 'individual',
+      objeto: '[FICTÍCIO] Reforma de espaço de exemplo',
+      valorPropostoCentavos: 2_550_075,
+      autores: [b],
+    });
+    await criarEmenda(c, {
+      exercicioId,
+      tipo: 'bancada',
+      objeto: '[FICTÍCIO] Projeto conjunto de exemplo',
+      valorPropostoCentavos: 5_000_000,
+      autores: [a, b, cc],
+    });
+    return { criado: true };
+  });
+}

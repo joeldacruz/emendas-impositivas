@@ -1,0 +1,20 @@
+# PostgreSQL somente para desenvolvimento local. Não usar em produção.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: emendas
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-emendas_dev}
+      POSTGRES_DB: emendas_dev
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - emendas_pg:/var/lib/postgresql/data
+      - ./docker/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U emendas -d emendas_dev"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+volumes:
+  emendas_pg:
