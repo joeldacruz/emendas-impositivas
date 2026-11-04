@@ -69,6 +69,21 @@ export async function semearDesenvolvimento(pool: Pool): Promise<{ criado: boole
       autores: [],
       bancadas: [bancadaId],
     });
+    const ben = await c.query<{ id: string }>(
+      "INSERT INTO beneficiario (nome, tipo) VALUES ('[FICTÍCIO] Entidade Beneficiária de Exemplo', 'outro') RETURNING id",
+    );
+    const emendaComBeneficiario = await c.query<{ id: string }>(
+      "SELECT id FROM emenda WHERE numero_oficial = 'FICT-001'",
+    );
+    await c.query('INSERT INTO emenda_beneficiario (emenda_id, beneficiario_id, valor_centavos) VALUES ($1,$2,$3)', [
+      emendaComBeneficiario.rows[0]!.id,
+      ben.rows[0]!.id,
+      400_000,
+    ]);
+    await c.query(
+      "INSERT INTO emenda_identificador_externo (emenda_id, sistema, tipo_id, valor_id) VALUES ($1, 'fictício', 'emenda', 'FICT-EXT-001')",
+      [emendaComBeneficiario.rows[0]!.id],
+    );
     return { criado: true };
   });
 }

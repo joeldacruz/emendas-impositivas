@@ -2,7 +2,7 @@
 
 Sistema de gestão de emendas impositivas municipais, inicialmente para a Câmara de Vereadores de Três Barras/SC.
 
-**Fase atual: Fase 3 — cadastros.** Núcleo funcional: exercício, parlamentar, mandatos, bancadas com composição histórica, emenda com autoria (parlamentar e/ou bancada), parâmetros legais versionados (sempre pendentes até validação) e auditoria. Os demais módulos do [roadmap](docs/05-plano-de-implementacao.md) ainda não foram implementados.
+**Fase atual: Fase 4 — emendas completas.** Núcleo funcional: exercício, parlamentar, mandatos, bancadas com composição histórica, emenda com autoria (parlamentar e/ou bancada), parâmetros legais versionados (sempre pendentes até validação) e auditoria. Os demais módulos do [roadmap](docs/05-plano-de-implementacao.md) ainda não foram implementados.
 
 ## Diretriz
 
@@ -78,6 +78,11 @@ Escritas exigem o cabeçalho `X-Usuario` (provisório, só para atribuir a audit
 | `POST /emendas` | Cria emenda com autoria: `autores` (parlamentares) e/ou `bancadas`, ao menos um |
 | `GET /emendas/:id` | Lê emenda |
 | `PATCH /emendas/:id` | Altera emenda; exige `versaoEsperada` (409 se desatualizada) |
+| `GET/POST /beneficiarios`, `GET /beneficiarios/:id` | Beneficiários; `documento` só dígitos (CPF 11 / CNPJ 14), dado pessoal restrito à área interna |
+| `POST /emendas/:id/beneficiarios`, `DELETE .../:beneficiarioId` | Vincula/remove beneficiário com `valorCentavos` opcional; a soma não pode passar do valor proposto |
+| `POST /emendas/:id/identificadores-externos`, `DELETE .../:identificadorId` | Identificadores de outros sistemas (ex.: IPM), separados do ID interno e do número oficial |
+| `POST /emendas/:id/cadastrar` | `rascunho` → `cadastrada` (exige `versaoEsperada`) |
+| `POST /emendas/:id/cancelar` | Cancelamento lógico com `motivo`; irreversível; emenda cancelada fica congelada |
 | `GET /emendas/:id/auditoria` | Eventos de auditoria da emenda (somente leitura) |
 
 Valores monetários são **inteiros em centavos** (`valorPropostoCentavos`).

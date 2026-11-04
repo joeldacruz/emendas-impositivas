@@ -13,7 +13,7 @@
 
 7. **Autenticação e autorização:** não existem. O cabeçalho `X-Usuario` é provisório e **não protege nada**; a API não deve ser exposta fora de ambiente controlado.
 8. **Papéis de banco:** a aplicação deve rodar sem privilégio de DDL nem de `DISABLE TRIGGER`; hoje só os gatilhos barram edição de auditoria.
-9. **Cancelamento lógico de emenda:** exclusão física é bloqueada, mas ainda não há fluxo de cancelamento nem situações além de `rascunho` (depende de validação jurídica).
+9. ~~Cancelamento lógico~~ — entregue na Fase 4 (situações neutras `rascunho`, `cadastrada`, `cancelada`; o fluxo jurídico real de tramitação segue pendente, ver item 21).
 10. ~~Vigência e bancadas~~ — entregue na Fase 3 (ver abaixo).
 11. **Hospedagem, backup e implantação:** não decididos; sem deploy nesta fase.
 12. **Docker em máquina de desenvolvimento:** o `docker-compose.yml` não pôde ser executado no ambiente desta fase (Docker Desktop não iniciou). A validação local usou PostgreSQL embutido; o CI usa PostgreSQL 16 em contêiner. Conferir o compose em máquina com Docker.
@@ -28,3 +28,12 @@
 18. **Bancada por exercício:** a bancada pertence a um exercício; se a bancada for permanente entre exercícios, o modelo muda.
 19. **Catálogo de códigos de parâmetros:** `codigo` é texto livre; um catálogo (P1 a P8 da matriz jurídica) só deve ser fixado após validação.
 20. **Remoção de vínculos e mandatos:** não há exclusão nem edição de datas pela API (só encerrar vigência de vínculo); correção de dados errados exige procedimento definido.
+
+## Abertas na Fase 4
+
+21. **Situações da emenda:** `rascunho`, `cadastrada` e `cancelada` são rótulos neutros de controle interno, não o rito legal. O fluxo real (análise, aprovação, execução etc.) depende da legislação e fica para a tramitação (Fase 5).
+22. **Edição após `cadastrada`:** hoje é permitida (com auditoria e controle de versão). Se a norma exigir travar ou exigir alteração documentada, isso muda.
+23. **Dado pessoal em beneficiário:** `documento` de pessoa física é dado pessoal. Falta política de LGPD (base legal, minimização, o que é publicável). Também não há validação de dígitos verificadores de CPF/CNPJ (só formato).
+24. **Soma dos beneficiários ≤ valor proposto:** é regra de consistência de dados, não norma jurídica; confirmar se a soma deve ser obrigatoriamente igual ao valor da emenda.
+25. **Cancelamento:** irreversível por desenho, sem fluxo de reabertura. Corrigir um cancelamento indevido exigirá procedimento definido.
+26. **Versão da emenda:** protege os campos da emenda e a autoria; beneficiários e identificadores externos mudam sem incrementar `versao` (têm trilha própria na auditoria).

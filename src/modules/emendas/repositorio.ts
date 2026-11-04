@@ -19,6 +19,10 @@ export interface Emenda {
   atualizadoEm: string;
   autores: string[];
   bancadas: string[];
+  beneficiarios: { beneficiarioId: string; valorCentavos: number | null }[];
+  identificadoresExternos: { id: string; sistema: string; tipoId: string; valorId: string }[];
+  canceladaEm: string | null;
+  cancelamentoMotivo: string | null;
 }
 
 export interface NovaEmenda {
@@ -54,6 +58,10 @@ interface LinhaEmenda {
   atualizado_em: Date;
   autores: string[] | null;
   bancadas: string[] | null;
+  beneficiarios: { beneficiarioId: string; valorCentavos: string | null }[] | null;
+  identificadores: { id: string; sistema: string; tipoId: string; valorId: string }[] | null;
+  cancelada_em: Date | null;
+  cancelamento_motivo: string | null;
 }
 
 const SELECT_EMENDA = `
@@ -63,7 +71,15 @@ const SELECT_EMENDA = `
   ) AS autores, (
     SELECT array_agg(a.bancada_id::text ORDER BY a.bancada_id)
     FROM emenda_autoria a WHERE a.emenda_id = e.id AND a.bancada_id IS NOT NULL
-  ) AS bancadas
+  ) AS bancadas, (
+    SELECT jsonb_agg(jsonb_build_object('beneficiarioId', b.beneficiario_id, 'valorCentavos', b.valor_centavos::text)
+                     ORDER BY b.criado_em, b.id)
+    FROM emenda_beneficiario b WHERE b.emenda_id = e.id
+  ) AS beneficiarios, (
+    SELECT jsonb_agg(jsonb_build_object('id', i.id, 'sistema', i.sistema, 'tipoId', i.tipo_id, 'valorId', i.valor_id)
+                     ORDER BY i.criado_em, i.id)
+    FROM emenda_identificador_externo i WHERE i.emenda_id = e.id
+  ) AS identificadores
   FROM emenda e`;
 
 function mapear(l: LinhaEmenda): Emenda {
@@ -84,6 +100,13 @@ function mapear(l: LinhaEmenda): Emenda {
     atualizadoEm: l.atualizado_em.toISOString(),
     autores: l.autores ?? [],
     bancadas: l.bancadas ?? [],
+    beneficiarios: (l.beneficiarios ?? []).map((b) => ({
+      beneficiarioId: b.beneficiarioId,
+      valorCentavos: b.valorCentavos === null ? null : Number(b.valorCentavos),
+    })),
+    identificadoresExternos: l.identificadores ?? [],
+    canceladaEm: l.cancelada_em ? l.cancelada_em.toISOString() : null,
+    cancelamentoMotivo: l.cancelamento_motivo,
   };
 }
 
@@ -186,6 +209,71 @@ export async function alterarEmenda(db: PoolClient, id: string, alt: AlteracaoEm
     }
   }
   return (await buscarEmenda(db, id))!;
+}
+
+async function conferirVersao(db: PoolClient, id: string, esperada: number) {
+  const r = await db.query<{ versao: number }>('SELECT versao FROM emenda WHERE id = $1 FOR UPDATE', [id]);
+  if (!r.rows[0]) throw new ErroNegocio(404, 'nao_encontrada', 'Emenda não encontrada');
+  if (r.rows[0].versao !== esperada) {
+    throw new ErroNegocio(409, 'versao_desatualizada', `A emenda está na versão ${r.rows[0].versao}; recarregue antes de alterar`);
+  }
+}
+
+/** Muda a situação (cadastrar ou cancelar). As transições válidas são garantidas pelo banco. */
+export async function mudarSituacao(
+  db: PoolClient,
+  id: string,
+  versaoEsperada: number,
+  destino: 'cadastrada' | 'cancelada',
+  motivo?: string,
+): Promise<Emenda> {
+  await conferirVersao(db, id, versaoEsperada);
+  if (destino === 'cancelada') {
+    await db.query(
+      "UPDATE emenda SET situacao = 'cancelada', cancelada_em = now(), cancelamento_motivo = $2 WHERE id = $1",
+      [id, motivo],
+    );
+  } else {
+    await db.query("UPDATE emenda SET situacao = 'cadastrada' WHERE id = $1", [id]);
+  }
+  return (await buscarEmenda(db, id))!;
+}
+
+export async function adicionarBeneficiario(db: PoolClient, emendaId: string, beneficiarioId: string, valorCentavos: number | null) {
+  if (!(await buscarEmenda(db, emendaId))) throw new ErroNegocio(404, 'nao_encontrada', 'Emenda não encontrada');
+  await db.query('INSERT INTO emenda_beneficiario (emenda_id, beneficiario_id, valor_centavos) VALUES ($1,$2,$3)', [
+    emendaId,
+    beneficiarioId,
+    valorCentavos,
+  ]);
+  return (await buscarEmenda(db, emendaId))!;
+}
+
+export async function removerBeneficiario(db: PoolClient, emendaId: string, beneficiarioId: string) {
+  const r = await db.query('DELETE FROM emenda_beneficiario WHERE emenda_id = $1 AND beneficiario_id = $2', [emendaId, beneficiarioId]);
+  if (!r.rowCount) throw new ErroNegocio(404, 'nao_encontrado', 'Beneficiário não vinculado à emenda');
+  return (await buscarEmenda(db, emendaId))!;
+}
+
+export async function adicionarIdentificadorExterno(
+  db: PoolClient,
+  emendaId: string,
+  d: { sistema: string; tipoId: string; valorId: string },
+) {
+  if (!(await buscarEmenda(db, emendaId))) throw new ErroNegocio(404, 'nao_encontrada', 'Emenda não encontrada');
+  await db.query('INSERT INTO emenda_identificador_externo (emenda_id, sistema, tipo_id, valor_id) VALUES ($1,$2,$3,$4)', [
+    emendaId,
+    d.sistema,
+    d.tipoId,
+    d.valorId,
+  ]);
+  return (await buscarEmenda(db, emendaId))!;
+}
+
+export async function removerIdentificadorExterno(db: PoolClient, emendaId: string, identificadorId: string) {
+  const r = await db.query('DELETE FROM emenda_identificador_externo WHERE emenda_id = $1 AND id = $2', [emendaId, identificadorId]);
+  if (!r.rowCount) throw new ErroNegocio(404, 'nao_encontrado', 'Identificador não encontrado');
+  return (await buscarEmenda(db, emendaId))!;
 }
 
 export interface EventoAuditoria {

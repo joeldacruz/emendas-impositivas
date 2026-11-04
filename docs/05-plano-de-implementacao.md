@@ -19,7 +19,7 @@ Decidir a stack (ADR), repositório estruturado, CI, migrações, autenticação
 Exercícios, parâmetros versionados (todos marcados como não validados), parlamentares, bancadas, composição histórica.
 **Aceite:** consulta de composição de bancada em uma data.
 
-## Fase 4 — Emendas
+## Fase 4 — Emendas (entregue em PR; aguardando revisão)
 Emenda com ID interno, número oficial, identificadores externos, autoria múltipla, objeto, valores, beneficiários. Sem bloqueios jurídicos até a validação.
 **Aceite:** ciclo completo de cadastro e edição com auditoria.
 
