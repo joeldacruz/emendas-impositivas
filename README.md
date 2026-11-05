@@ -131,12 +131,14 @@ Regras principais:
 
 - **Escopo da chave:** `(origem, exercício, unidade gestora, chaveOrigem)`; a mesma chave em outro exercício ou unidade é outro movimento.
 - **Idempotência:** mesma chave e mesmo conteúdo (SHA-256 do conteúdo normalizado) = ignorado. Mesma chave com conteúdo diferente = o registro anterior é **preservado** e abre-se pendência de conferência (uma só por conteúdo divergente).
-- **Rejeição por linha, com motivo:** formato, tipo, pai inexistente ou de tipo errado, datas incoerentes, e saldos da cadeia (liquidação ≤ empenho; pagamento ≤ liquidação líquida; estornos ≤ original). As demais linhas do lote são consolidadas.
-- **Vínculo com emenda:** automático **somente** pelo `identificadorEmenda` previamente cadastrado como identificador externo (`sistema = origem`, `tipoId = emenda`); nunca por credor ou coincidência de valores. Sem vínculo, o movimento fica **pendente**. Vínculo manual exige justificativa; rateio entre emendas com soma ≤ valor do movimento (garantido no banco, inclusive sob concorrência); vínculo errado é revogado, nunca apagado.
+- **Rejeição por linha, com motivo:** formato, tipo, pai inexistente ou de tipo errado, datas incoerentes (inclusive movimento posterior à data de referência do lote, checado antes de decidir se é duplicata) e saldos da cadeia (liquidação ≤ empenho; pagamento ≤ liquidação líquida; estornos ≤ original). As demais linhas do lote são consolidadas.
+- **Ordem do lote:** o formato não traz sequência de lançamento e ela não é inventada: processa-se por `dataDocumento` e, no empate, pela posição no arquivo; linha rejeitada só por dependência (pai ou saldo) é reavaliada depois das demais. Assim um estorno válido libera saldo para uma reposição no mesmo lote. Disputa pelo mesmo saldo: vale a de menor (data, posição), a outra é rejeitada com motivo.
+- **Vínculo com emenda:** automático **somente** pelo `identificadorEmenda` previamente cadastrado como identificador externo (`sistema = origem`, `tipoId = emenda`); nunca por credor ou coincidência de valores. Sem vínculo, o movimento fica **pendente**. Vínculo manual exige justificativa; rateio entre emendas com soma ≤ valor do movimento (garantido no banco, inclusive sob concorrência); vínculo errado é revogado, nunca apagado. **Estorno só abate a parcela do original alocada à mesma emenda** (sem alocação compatível: o estorno fica sem vínculo e a emenda afetada recebe uma pendência); revogar o vínculo do original com estornos vinculados é bloqueado.
+- **Última carga × referência dos dados:** a consulta traz `ultimaImportacao` (a última carga) e `referenciaMaisRecenteDosDados` (que não retrocede com uma carga histórica), além de `pendenciasAbertas` da emenda.
 - **Estados distintos:** a consulta separa empenhado, liquidado e pago (brutos e líquidos de estornos) e traz `objetoEntregue` e `prestacaoDeContasAprovada` como **não apurados**: nada disso decorre de valores financeiros.
 - **Auditoria:** lote, movimentos, pendências e vínculos geram eventos (usuário e origem); eventos de vínculo aparecem em `GET /emendas/:id/auditoria`.
 
-Roteiro (núcleo simulado × conector real) e perguntas abertas sobre a rotina 45679: [investigacao-ipm](docs/integracao-ipm/investigacao-ipm.md) (seção "Fase 6") e [pendências](docs/pendencias.md) (itens 37 a 48).
+Roteiro (núcleo simulado × conector real) e perguntas abertas sobre a rotina 45679: [investigacao-ipm](docs/integracao-ipm/investigacao-ipm.md) (seção "Fase 6") e [pendências](docs/pendencias.md) (itens 37 a 52).
 
 ## Testes e verificações
 

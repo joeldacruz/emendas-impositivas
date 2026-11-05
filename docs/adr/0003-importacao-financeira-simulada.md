@@ -15,6 +15,12 @@
 8. **Auditoria** pelos mesmos gatilhos das demais tabelas (lote, movimento, pendência, vínculo); o vínculo carrega `emenda_id` e aparece na auditoria da emenda. O resultado de cada linha é gravado em tabela imutável.
 9. **Importações serializadas** por trava de aconselhamento do PostgreSQL: duas cargas simultâneas não disputam as mesmas chaves.
 
+## Adendo (revisão do PR 5) — migração 0007
+
+10. **Estorno por emenda.** Um estorno só abate a parcela do movimento original alocada à mesma emenda (menos estornos irmãos já alocados a ela). Garantido por gatilho no banco, com trava do original (ordem fixa: emenda → movimento → original). Sem lastro na importação: o estorno é aceito como fato da origem, fica sem vínculo e abre-se pendência `estorno_sem_alocacao_compativel` da emenda afetada, sem revelar dados de outra emenda. Revogar o vínculo do original com estornos vinculados à mesma emenda é bloqueado (exige revogar os estornos antes).
+11. **Ordem do lote sem cronologia inventada.** Ordem inicial por `dataDocumento` e posição (desempate); linhas rejeitadas só por dependência (pai ou saldo) são reavaliadas até não haver progresso. Disputa pelo mesmo saldo: menor (data, posição) vence, com a outra rejeitada e motivada.
+12. **Data de referência primeiro.** A checagem de data/exercício do documento ocorre antes da detecção de duplicata e de divergência. A consulta separa a última carga da referência mais recente dos dados.
+
 ## Consequências
 
 - Reimportar é seguro e barato; erro de formato de uma linha não derruba o lote.

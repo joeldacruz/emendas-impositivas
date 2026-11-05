@@ -66,7 +66,7 @@ export async function vincularMovimento(
       );
       const resolvida = await c.query(
         `UPDATE importacao_pendencia SET situacao = 'resolvida', resolucao = $2, resolvida_por = $3, resolvida_em = now()
-          WHERE movimento_id = $1 AND tipo = 'sem_vinculo' AND situacao = 'aberta'`,
+          WHERE movimento_id = $1 AND tipo IN ('sem_vinculo', 'estorno_sem_alocacao_compativel') AND situacao = 'aberta'`,
         [d.movimentoId, `vinculado manualmente à emenda ${d.emendaId}: ${justificativa}`, ctx.usuario],
       );
       return {
@@ -128,7 +128,7 @@ export async function resolverPendenciaDeDivergencia(
       const atual = await c.query<{ tipo: string }>('SELECT tipo FROM importacao_pendencia WHERE id = $1 FOR UPDATE', [d.pendenciaId]);
       if (!atual.rows[0]) throw new ErroNegocio(404, 'pendencia_nao_encontrada', 'Pendência não encontrada');
       if (atual.rows[0].tipo !== 'divergencia_origem') {
-        throw new ErroNegocio(422, 'tipo_invalido', 'Só pendências de divergência são resolvidas aqui; pendências sem vínculo se resolvem vinculando o movimento');
+        throw new ErroNegocio(422, 'tipo_invalido', 'Só pendências de divergência são resolvidas aqui; pendências de vínculo se resolvem vinculando o movimento');
       }
       await c.query(
         `UPDATE importacao_pendencia SET situacao = 'resolvida', resolucao = $2, resolvida_por = $3, resolvida_em = now() WHERE id = $1`,

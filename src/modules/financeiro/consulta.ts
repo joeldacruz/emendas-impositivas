@@ -66,6 +66,28 @@ export async function consultarExecucaoDaEmenda(db: Consultavel, emendaId: strin
     [emendaId],
   );
 
+  // Referência mais recente dos DADOS: nunca retrocede por causa de uma carga histórica (que pode ter referência menor).
+  const ref = await db.query<{ ref: string | null }>(
+    `SELECT max(lt.data_referencia) AS ref
+       FROM movimento_vinculo_emenda v
+       JOIN importacao_linha li ON li.movimento_id = v.movimento_id AND li.resultado IN ('aceito', 'ja_importado')
+       JOIN importacao_lote lt ON lt.id = li.lote_id
+      WHERE v.emenda_id = $1 AND v.revogado_em IS NULL`,
+    [emendaId],
+  );
+
+  // Pendências abertas que afetam ESTA emenda: estornos sem alocação compatível e divergências dos movimentos vinculados.
+  const pend = await db.query<{ id: string; tipo: string; movimento_id: string; chave_origem: string; tipo_movimento: string; detalhes: Record<string, unknown> }>(
+    `SELECT p.id, p.tipo, p.movimento_id, m.chave_origem, m.tipo AS tipo_movimento, p.detalhes
+       FROM importacao_pendencia p JOIN movimento_financeiro m ON m.id = p.movimento_id
+      WHERE p.situacao = 'aberta'
+        AND ((p.tipo = 'estorno_sem_alocacao_compativel' AND p.emenda_id = $1)
+          OR (p.tipo = 'divergencia_origem' AND p.movimento_id IN
+              (SELECT v.movimento_id FROM movimento_vinculo_emenda v WHERE v.emenda_id = $1 AND v.revogado_em IS NULL)))
+      ORDER BY p.criado_em, p.id`,
+    [emendaId],
+  );
+
   return {
     emendaId,
     exercicio: e.rows[0].ano,
@@ -83,7 +105,20 @@ export async function consultarExecucaoDaEmenda(db: Consultavel, emendaId: strin
     ultimaImportacao: ultima.rows[0]
       ? { loteId: ultima.rows[0].id, importadoEm: ultima.rows[0].criado_em.toISOString(), dataReferencia: ultima.rows[0].data_referencia }
       : null,
+    /** Data da última CARGA (quando) e a referência do lote dessa carga — pode ser menor que a referência mais recente. */
+    referenciaMaisRecenteDosDados: ref.rows[0]?.ref ?? null,
     divergenciasAbertas: mov.rows.filter((m) => m.divergencia_aberta).length,
+    pendenciasAbertas: pend.rows.map((p) => ({
+      pendenciaId: p.id,
+      tipo: p.tipo,
+      movimentoId: p.movimento_id,
+      chaveOrigem: p.chave_origem,
+      tipoMovimento: p.tipo_movimento,
+      motivo:
+        p.tipo === 'divergencia_origem'
+          ? `conteúdo divergente na origem (campos: ${((p.detalhes.camposDivergentes as string[] | undefined) ?? []).join(', ')}); registro anterior preservado`
+          : String(p.detalhes.motivo ?? ''),
+    })),
     movimentos: mov.rows.map((m) => ({
       vinculoId: m.vinculo_id,
       movimentoId: m.movimento_id,

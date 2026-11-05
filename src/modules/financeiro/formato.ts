@@ -24,15 +24,6 @@ export const TIPO_DO_PAI: Record<TipoMovimento, TipoMovimento | null> = {
   estorno_pagamento: 'pagamento',
 };
 
-/** Ordem de processamento: o pai sempre antes do filho, independentemente da ordem no arquivo. */
-export const POSTO: Record<TipoMovimento, number> = {
-  empenho: 0,
-  liquidacao: 1,
-  pagamento: 2,
-  estorno_liquidacao: 3,
-  estorno_pagamento: 3,
-};
-
 export class ErroFormato extends Error {
   constructor(public readonly motivos: string[]) {
     super(`Lote rejeitado: ${motivos.join('; ')}`);

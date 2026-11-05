@@ -4,7 +4,6 @@ import { comTransacao } from '../../db/transacao.js';
 import {
   CAMPOS_DO_CONTEUDO,
   ErroFormato,
-  POSTO,
   TIPO_DO_PAI,
   conteudoCanonico,
   hashDoConteudo,
@@ -68,15 +67,18 @@ interface Desfecho {
   movimentoId: string | null;
   pendenciaId: string | null;
   hash: string | null;
+  /** Rejeição só por dependência ainda não satisfeita (pai ausente ou saldo): a linha é reavaliada depois das demais. */
+  adiavel: boolean;
 }
 
-const rejeitado = (motivos: string[], hash: string | null = null): Desfecho => ({
+const rejeitado = (motivos: string[], hash: string | null = null, adiavel = false): Desfecho => ({
   resultado: 'rejeitado',
   motivos,
   semVinculo: false,
   movimentoId: null,
   pendenciaId: null,
   hash,
+  adiavel,
 });
 
 const brl = (centavos: bigint | number) => {
@@ -149,27 +151,51 @@ async function executar(c: PoolClient, cab: Cabecalho, meta: MetaImportacao): Pr
     if (!it.v.ok) await gravarLinha(it.numero, it.bruto, null, rejeitado(it.v.motivos));
   }
 
-  // 2) válidos, pai antes de filho
-  const validos = itens
+  // 2) válidos. O formato não traz sequência de lançamento, então NENHUMA cronologia é inventada:
+  //    - ordem inicial: dataDocumento (informada pela origem) e, no empate, posição no arquivo;
+  //    - linha rejeitada apenas por dependência (pai ausente ou saldo insuficiente) é reavaliada depois das demais,
+  //      até que uma rodada inteira não consiga aceitar nem decidir mais nada;
+  //    - assim um estorno válido libera saldo para uma reposição, em qualquer ordem do arquivo.
+  //    Quando duas linhas disputam o mesmo saldo, vale a de menor (data, posição); a outra é rejeitada com motivo.
+  type Item = { numero: number; bruto: unknown; registro: RegistroValido };
+  let fila: Item[] = itens
     .flatMap((it) => (it.v.ok ? [{ numero: it.numero, bruto: it.bruto, registro: it.v.registro }] : []))
-    .sort((a, b) => POSTO[a.registro.tipo] - POSTO[b.registro.tipo] || a.numero - b.numero);
+    .sort((a, b) => (a.registro.dataDocumento < b.registro.dataDocumento ? -1 : a.registro.dataDocumento > b.registro.dataDocumento ? 1 : a.numero - b.numero));
 
-  for (const it of validos) {
+  const tentar = async (it: Item): Promise<Desfecho> => {
     await c.query('SAVEPOINT linha');
-    let desfecho: Desfecho;
     try {
-      desfecho = await processar(c, escopo, cab, loteId, it.bruto, it.registro, meta.usuario);
+      const d = await processar(c, escopo, cab, loteId, it.bruto, it.registro, meta.usuario);
       await c.query('RELEASE SAVEPOINT linha');
+      return d;
     } catch (erro) {
       const codigo = (erro as { code?: string }).code;
       if (typeof codigo === 'string' && codigo.startsWith('23')) {
         await c.query('ROLLBACK TO SAVEPOINT linha');
-        desfecho = rejeitado([`regra de integridade do banco: ${(erro as Error).message}`], hashDoConteudo(it.registro));
+        return rejeitado([`regra de integridade do banco: ${(erro as Error).message}`], hashDoConteudo(it.registro));
+      }
+      throw erro;
+    }
+  };
+
+  while (fila.length > 0) {
+    const adiadas: { it: Item; d: Desfecho }[] = [];
+    let decididas = 0;
+    for (const it of fila) {
+      const d = await tentar(it);
+      if (d.adiavel) {
+        adiadas.push({ it, d });
       } else {
-        throw erro;
+        await gravarLinha(it.numero, it.bruto, it.registro, d);
+        decididas += 1;
       }
     }
-    await gravarLinha(it.numero, it.bruto, it.registro, desfecho);
+    if (decididas === 0) {
+      // nada mais muda: as pendentes de dependência são rejeitadas definitivamente
+      for (const { it, d } of adiadas) await gravarLinha(it.numero, it.bruto, it.registro, { ...d, adiavel: false });
+      break;
+    }
+    fila = adiadas.map((a) => a.it);
   }
 
   linhas.sort((a, b) => a.numeroLinha - b.numeroLinha);
@@ -234,6 +260,19 @@ async function processar(
 ): Promise<Desfecho> {
   const hash = hashDoConteudo(rec);
 
+  // Verificações do lote vêm ANTES de qualquer classificação por duplicidade ou divergência: um movimento posterior
+  // à data de referência não pode sair como "já importado" nem gerar pendência de divergência.
+  const doLote: string[] = [];
+  if (rec.dataDocumento > cab.dataReferencia) {
+    doLote.push(`dataDocumento ${rec.dataDocumento} é posterior à data de referência do lote (${cab.dataReferencia})`);
+  }
+  if (rec.exercicioDocumento !== null && rec.exercicioDocumento !== cab.exercicio) {
+    doLote.push(
+      `exercicioDocumento ${rec.exercicioDocumento} difere do exercício do lote (${cab.exercicio}); restos a pagar e documentos de outro exercício ainda não são suportados (ver docs/pendencias.md)`,
+    );
+  }
+  if (doLote.length) return rejeitado(doLote, hash);
+
   const existente = await c.query<LinhaMovimento>(
     `SELECT m.id, m.tipo, m.numero, m.exercicio_documento, m.data_documento, m.valor_centavos::text AS valor, m.dotacao,
             m.credor_nome, m.identificador_emenda, m.hash_conteudo, pai.chave_origem AS pai_chave
@@ -253,21 +292,15 @@ async function processar(
         movimentoId: antigo.id,
         pendenciaId: null,
         hash,
+        adiavel: false,
       };
     }
     return divergencia(c, loteId, antigo, rec, hash);
   }
 
   // ----- novo movimento: validações que dependem do estado do banco
-  const motivos: string[] = [];
-  if (rec.dataDocumento > cab.dataReferencia) {
-    motivos.push(`dataDocumento ${rec.dataDocumento} é posterior à data de referência do lote (${cab.dataReferencia})`);
-  }
-  if (rec.exercicioDocumento !== null && rec.exercicioDocumento !== cab.exercicio) {
-    motivos.push(
-      `exercicioDocumento ${rec.exercicioDocumento} difere do exercício do lote (${cab.exercicio}); restos a pagar e documentos de outro exercício ainda não são suportados (ver docs/pendencias.md)`,
-    );
-  }
+  const finais: string[] = [];
+  const adiaveis: string[] = [];
 
   let pai: { id: string; tipo: string; dataDocumento: string; valor: bigint } | null = null;
   if (rec.registroPaiChave) {
@@ -278,23 +311,24 @@ async function processar(
     );
     const linhaPai = p.rows[0];
     if (!linhaPai) {
-      motivos.push(
+      adiaveis.push(
         `registroPaiChave "${rec.registroPaiChave}" não encontrado nesta origem, exercício e unidade gestora (nem neste lote, nem em lotes anteriores)`,
       );
     } else if (linhaPai.tipo !== TIPO_DO_PAI[rec.tipo]) {
-      motivos.push(`${rec.tipo} deve referenciar um ${TIPO_DO_PAI[rec.tipo]}, mas "${rec.registroPaiChave}" é ${linhaPai.tipo}`);
+      finais.push(`${rec.tipo} deve referenciar um ${TIPO_DO_PAI[rec.tipo]}, mas "${rec.registroPaiChave}" é ${linhaPai.tipo}`);
     } else {
       pai = { id: linhaPai.id, tipo: linhaPai.tipo, dataDocumento: linhaPai.data_documento, valor: BigInt(linhaPai.valor) };
       if (rec.dataDocumento < pai.dataDocumento) {
-        motivos.push(`dataDocumento ${rec.dataDocumento} é anterior à do registro pai (${pai.dataDocumento})`);
+        finais.push(`dataDocumento ${rec.dataDocumento} é anterior à do registro pai (${pai.dataDocumento})`);
       }
     }
   }
-  if (pai && motivos.length === 0) {
+  if (pai && finais.length === 0) {
     const saldo = await validarSaldos(c, rec, pai);
-    if (saldo) motivos.push(saldo);
+    if (saldo) adiaveis.push(saldo);
   }
-  if (motivos.length) return rejeitado(motivos, hash);
+  if (finais.length) return rejeitado([...finais, ...adiaveis], hash);
+  if (adiaveis.length) return rejeitado(adiaveis, hash, true);
 
   const ins = await c.query<{ id: string }>(
     `INSERT INTO movimento_financeiro (origem, exercicio_id, unidade_gestora, chave_origem, tipo, registro_pai_id, numero, exercicio_documento,
@@ -309,6 +343,7 @@ async function processar(
 
   // ----- vínculo: só pelo identificador de emenda previamente cadastrado. Nada de dedução por credor ou valor.
   let motivoSemVinculo: string | null = null;
+  let estornoSemAlocacao: { emendaId: string; parcelaNestaEmenda: bigint; estornosNestaEmenda: bigint } | null = null;
   if (!rec.identificadorEmenda) {
     motivoSemVinculo = 'movimento sem identificadorEmenda: vínculo deve ser decidido manualmente';
   } else {
@@ -325,16 +360,43 @@ async function processar(
     } else if (emenda.situacao === 'cancelada') {
       motivoSemVinculo = `a emenda do identificador "${rec.identificadorEmenda}" está cancelada`;
     } else {
-      await c.query(
-        `INSERT INTO movimento_vinculo_emenda (movimento_id, emenda_id, valor_centavos, decisao, decidido_por)
-         VALUES ($1,$2,$3,'identificador_externo',$4)`,
-        [movimentoId, emenda.id, rec.valorCentavos, usuario],
-      );
+      // Estorno: só abate a parcela do movimento ORIGINAL alocada à MESMA emenda (acumulando os estornos anteriores).
+      const incompat = pai && (rec.tipo === 'estorno_liquidacao' || rec.tipo === 'estorno_pagamento') ? await estornoSemLastro(c, pai.id, rec.tipo, emenda.id, rec.valorCentavos) : null;
+      if (incompat) {
+        estornoSemAlocacao = { emendaId: emenda.id, ...incompat };
+      } else {
+        await c.query(
+          `INSERT INTO movimento_vinculo_emenda (movimento_id, emenda_id, valor_centavos, decisao, decidido_por)
+           VALUES ($1,$2,$3,'identificador_externo',$4)`,
+          [movimentoId, emenda.id, rec.valorCentavos, usuario],
+        );
+      }
     }
   }
 
   let pendenciaId: string | null = null;
-  if (motivoSemVinculo) {
+  if (estornoSemAlocacao) {
+    // A pendência é da emenda afetada e não revela a alocação de nenhuma outra emenda.
+    motivoSemVinculo =
+      `estorno de ${brl(rec.valorCentavos)} sem alocação compatível: o movimento original tem ${brl(estornoSemAlocacao.parcelaNestaEmenda)} alocados a esta emenda e ${brl(estornoSemAlocacao.estornosNestaEmenda)} de estornos já alocados a ela`;
+    const pend = await c.query<{ id: string }>(
+      `INSERT INTO importacao_pendencia (lote_id, movimento_id, tipo, emenda_id, detalhes)
+       VALUES ($1,$2,'estorno_sem_alocacao_compativel',$3,$4::jsonb) RETURNING id`,
+      [
+        loteId,
+        movimentoId,
+        estornoSemAlocacao.emendaId,
+        JSON.stringify({
+          motivo: motivoSemVinculo,
+          identificadorEmenda: rec.identificadorEmenda,
+          valorDoEstornoCentavos: rec.valorCentavos,
+          parcelaDoOriginalNestaEmendaCentavos: Number(estornoSemAlocacao.parcelaNestaEmenda),
+          estornosJaAlocadosNestaEmendaCentavos: Number(estornoSemAlocacao.estornosNestaEmenda),
+        }),
+      ],
+    );
+    pendenciaId = pend.rows[0]!.id;
+  } else if (motivoSemVinculo) {
     const pend = await c.query<{ id: string }>(
       `INSERT INTO importacao_pendencia (lote_id, movimento_id, tipo, detalhes) VALUES ($1,$2,'sem_vinculo',$3::jsonb) RETURNING id`,
       [loteId, movimentoId, JSON.stringify({ motivo: motivoSemVinculo, identificadorEmenda: rec.identificadorEmenda })],
@@ -349,6 +411,7 @@ async function processar(
     movimentoId,
     pendenciaId,
     hash,
+    adiavel: false,
   };
 }
 
@@ -393,6 +456,7 @@ async function divergencia(c: PoolClient, loteId: string, antigo: LinhaMovimento
     movimentoId: antigo.id,
     pendenciaId,
     hash,
+    adiavel: false,
   };
 }
 
@@ -450,4 +514,29 @@ async function validarSaldos(c: PoolClient, rec: RegistroValido, pai: { id: stri
     default:
       return null;
   }
+}
+
+/**
+ * Compatibilidade de um estorno com a emenda: parcela do original alocada a ela (vínculos ativos) menos os estornos
+ * irmãos já alocados a ela. Devolve null se couber; senão os números (só desta emenda) para a pendência.
+ */
+async function estornoSemLastro(
+  c: PoolClient,
+  paiId: string,
+  tipo: string,
+  emendaId: string,
+  valor: number,
+): Promise<{ parcelaNestaEmenda: bigint; estornosNestaEmenda: bigint } | null> {
+  const p = await c.query<{ s: string }>(
+    `SELECT coalesce(sum(valor_centavos), 0)::text AS s FROM movimento_vinculo_emenda WHERE movimento_id = $1 AND emenda_id = $2 AND revogado_em IS NULL`,
+    [paiId, emendaId],
+  );
+  const e = await c.query<{ s: string }>(
+    `SELECT coalesce(sum(ve.valor_centavos), 0)::text AS s FROM movimento_vinculo_emenda ve JOIN movimento_financeiro f ON f.id = ve.movimento_id
+      WHERE f.registro_pai_id = $1 AND f.tipo = $2 AND ve.emenda_id = $3 AND ve.revogado_em IS NULL`,
+    [paiId, tipo, emendaId],
+  );
+  const parcela = BigInt(p.rows[0]!.s);
+  const estornos = BigInt(e.rows[0]!.s);
+  return estornos + BigInt(valor) > parcela ? { parcelaNestaEmenda: parcela, estornosNestaEmenda: estornos } : null;
 }
