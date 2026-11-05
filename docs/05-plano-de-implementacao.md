@@ -15,7 +15,7 @@ Documentos de escopo, arquitetura, modelo, requisitos, plano, matriz jurídica e
 Decidir a stack (ADR), repositório estruturado, CI, migrações, autenticação e papéis, auditoria base.
 **Aceite:** aplicação sobe, autentica, grava e audita uma entidade de exemplo.
 
-## Fase 3 — Cadastros
+## Fase 3 — Cadastros (entregue em PR; aguardando revisão)
 Exercícios, parâmetros versionados (todos marcados como não validados), parlamentares, bancadas, composição histórica.
 **Aceite:** consulta de composição de bancada em uma data.
 

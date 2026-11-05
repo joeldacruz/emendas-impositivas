@@ -46,6 +46,29 @@ export async function semearDesenvolvimento(pool: Pool): Promise<{ criado: boole
       valorPropostoCentavos: 5_000_000,
       autores: [a, b, cc],
     });
+    const banc = await c.query<{ id: string }>(
+      "INSERT INTO bancada (exercicio_id, nome) VALUES ($1, '[FICTÍCIO] Bancada Exemplo') RETURNING id",
+      [exercicioId],
+    );
+    const bancadaId = banc.rows[0]!.id;
+    await c.query(
+      'INSERT INTO bancada_membro (bancada_id, parlamentar_id, vigencia_inicio, vigencia_fim) VALUES ($1,$2,$3,$4), ($1,$5,$6,NULL)',
+      [bancadaId, a, '2099-01-01', '2099-06-30', b, '2099-01-01'],
+    );
+    // Parâmetro fictício, PENDENTE e sem valor jurídico real.
+    await c.query(
+      `INSERT INTO parametro_legal (exercicio_id, codigo, valor, vigencia_inicio, observacao)
+       VALUES ($1, 'FICTICIO_EXEMPLO', '{"valor":"sem significado juridico"}', '2099-01-01', '[FICTÍCIO] apenas para desenvolvimento')`,
+      [exercicioId],
+    );
+    await criarEmenda(c, {
+      exercicioId,
+      tipo: 'bancada',
+      objeto: '[FICTÍCIO] Projeto da bancada de exemplo',
+      valorPropostoCentavos: 750_000,
+      autores: [],
+      bancadas: [bancadaId],
+    });
     return { criado: true };
   });
 }

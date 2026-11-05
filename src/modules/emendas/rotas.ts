@@ -9,7 +9,7 @@ import { alterarEmenda, buscarEmenda, criarEmenda, listarAuditoriaDaEmenda, list
 const uuid = z.string().uuid();
 const centavos = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const texto = z.string().trim().min(1).max(4000);
-const autores = z.array(uuid).min(1).max(50);
+const autores = z.array(uuid).max(50);
 
 const novaEmenda = z
   .object({
@@ -19,9 +19,15 @@ const novaEmenda = z
     objeto: texto,
     valorPropostoCentavos: centavos,
     autores,
+    bancadas: z.array(uuid).max(50).default([]),
   })
   .strict()
-  .refine((v) => new Set(v.autores).size === v.autores.length, { message: 'autores repetidos', path: ['autores'] });
+  .refine((v) => new Set(v.autores).size === v.autores.length, { message: 'autores repetidos', path: ['autores'] })
+  .refine((v) => new Set(v.bancadas).size === v.bancadas.length, { message: 'bancadas repetidas', path: ['bancadas'] })
+  .refine((v) => v.autores.length + v.bancadas.length > 0, {
+    message: 'informe ao menos um autor (parlamentar ou bancada)',
+    path: ['autores'],
+  });
 
 const alteracao = z
   .object({
@@ -31,11 +37,16 @@ const alteracao = z
     objeto: texto.optional(),
     valorPropostoCentavos: centavos.optional(),
     autores: autores.optional(),
+    bancadas: z.array(uuid).max(50).optional(),
   })
   .strict()
   .refine((v) => !v.autores || new Set(v.autores).size === v.autores.length, {
     message: 'autores repetidos',
     path: ['autores'],
+  })
+  .refine((v) => !v.bancadas || new Set(v.bancadas).size === v.bancadas.length, {
+    message: 'bancadas repetidas',
+    path: ['bancadas'],
   });
 
 export function rotasEmendas(app: FastifyInstance, pool: Pool) {
