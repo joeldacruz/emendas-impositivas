@@ -27,6 +27,7 @@ plano de implementação; **não presuma funcionalidades que não estejam lá**.
 - **Sem autenticação**: o cabeçalho `X-Usuario` é provisório, só identifica o autor na auditoria. Não é segurança.
 - Sem papéis/permissões, sem papéis de banco separados, sem armazenamento de arquivos (só metadados e SHA-256),
   sem deploy/produção. `docker compose` ainda não foi validado em máquina real.
+- A importação financeira (Fase 6A) é **simulada**: só origem `SIMULADO-*`, por comando local (`npm run importar` / `npm run financeiro`), sem rota de carga e sem conexão com a IPM. O conector real está bloqueado (ver `docs/integracao-ipm/investigacao-ipm.md`).
 - Nenhum arquivo real da IPM, do portal ou de terceiros é baixado ou versionado. Dados de desenvolvimento são
   fictícios (`[FICTÍCIO]`) e o seed é bloqueado em `AMBIENTE=producao`.
 

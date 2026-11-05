@@ -7,6 +7,7 @@ import { rotasBeneficiarios } from './modules/beneficiarios/rotas.js';
 import { rotasCadastros } from './modules/cadastros/rotas.js';
 import { rotasDocumentos } from './modules/documentos/rotas.js';
 import { rotasEmendas } from './modules/emendas/rotas.js';
+import { rotasExecucaoFinanceira } from './modules/financeiro/consulta.js';
 import { rotasPlanos } from './modules/planos/rotas.js';
 import { rotasParametros } from './modules/parametros/rotas.js';
 import { rotasSaude } from './modules/saude/rotas.js';
@@ -29,5 +30,6 @@ export function construirApp(pool: Pool, config: Pick<Config, 'LOG_LEVEL' | 'AMB
   rotasPlanos(app, pool);
   rotasTramitacao(app, pool);
   rotasDocumentos(app, pool);
+  rotasExecucaoFinanceira(app, pool);
   return app;
 }
