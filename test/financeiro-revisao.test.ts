@@ -253,6 +253,27 @@ describe('ponto 2: ordem do lote — estorno válido libera saldo para reposiç�
     expect(rel.totais).toMatchObject({ aceitas: 2, rejeitadas: 0 });
   });
 
+  it('mesma data, ordem A, estorno, B: o saldo liberado serve só a UMA reposição e A (a primeira na ordem) tem a primeira oportunidade', async () => {
+    const base = [emp('RP-EMP', 100_000, '2090-02-01', 'EMD-A'), filho('liquidacao', 'RP-L1', 'RP-EMP', 100_000, '2090-03-01', 'EMD-A')];
+    const A = filho('liquidacao', 'RP-A', 'RP-EMP', 40_000, '2090-03-10', 'EMD-A');
+    const est = filho('estorno_liquidacao', 'RP-EST', 'RP-L1', 40_000, '2090-03-10', 'EMD-A');
+    const B = filho('liquidacao', 'RP-B', 'RP-EMP', 40_000, '2090-03-10', 'EMD-A');
+    const rel = await importar(lote([...base, A, est, B]));
+    const res = (rl: typeof rel, k: string) => rl.linhas.find((l) => l.chaveOrigem === k)!;
+    expect(res(rel, 'RP-A').resultado).toBe('aceito');
+    expect(res(rel, 'RP-EST').resultado).toBe('aceito');
+    expect(res(rel, 'RP-B').resultado).toBe('rejeitado');
+    expect(res(rel, 'RP-B').motivos.join(' ')).toMatch(/excede o saldo do empenho/);
+    expect(rel.totais).toMatchObject({ aceitas: 4, rejeitadas: 1 });
+    // determinístico: repetir com outro escopo dá o mesmo resultado
+    const rel2 = await importar(lote([...base, A, est, B]));
+    expect(rel2.linhas.filter((l) => l.resultado === 'aceito').map((l) => l.chaveOrigem).sort()).toEqual(['RP-A', 'RP-EMP', 'RP-EST', 'RP-L1']);
+    // a mesma disputa com B listada antes de A (mesma data): a posição no arquivo decide, B passa a ser a primeira
+    const rel3 = await importar(lote([...base, B, est, A]));
+    expect(res(rel3, 'RP-B').resultado).toBe('aceito');
+    expect(res(rel3, 'RP-A').resultado).toBe('rejeitado');
+  });
+
   it('disputa pelo mesmo saldo: vale a de menor (data, posição); a outra é rejeitada com motivo, sem inventar cronologia', async () => {
     const regs = [
       emp('DP-EMP', 100_000, '2090-02-01', 'EMD-A'),

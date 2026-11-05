@@ -18,7 +18,7 @@
 ## Adendo (revisão do PR 5) — migração 0007
 
 10. **Estorno por emenda.** Um estorno só abate a parcela do movimento original alocada à mesma emenda (menos estornos irmãos já alocados a ela). Garantido por gatilho no banco, com trava do original (ordem fixa: emenda → movimento → original). Sem lastro na importação: o estorno é aceito como fato da origem, fica sem vínculo e abre-se pendência `estorno_sem_alocacao_compativel` da emenda afetada, sem revelar dados de outra emenda. Revogar o vínculo do original com estornos vinculados à mesma emenda é bloqueado (exige revogar os estornos antes).
-11. **Ordem do lote sem cronologia inventada.** Ordem inicial por `dataDocumento` e posição (desempate); linhas rejeitadas só por dependência (pai ou saldo) são reavaliadas até não haver progresso. Disputa pelo mesmo saldo: menor (data, posição) vence, com a outra rejeitada e motivada.
+11. **Ordem do lote sem cronologia inventada.** Ordem inicial por `dataDocumento` e posição (desempate); linhas que falham só por dependência (pai ou saldo) são adiadas e voltam à fila, à frente das ainda não tentadas, sempre que outra linha é aceita; sem progresso, são rejeitadas. Assim, no saldo liberado por um estorno, a reposição de menor (data, posição) tem a primeira oportunidade. Disputa pelo mesmo saldo: menor (data, posição) vence, com a outra rejeitada e motivada.
 12. **Data de referência primeiro.** A checagem de data/exercício do documento ocorre antes da detecção de duplicata e de divergência. A consulta separa a última carga da referência mais recente dos dados.
 
 ## Consequências

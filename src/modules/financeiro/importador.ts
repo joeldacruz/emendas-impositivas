@@ -154,11 +154,11 @@ async function executar(c: PoolClient, cab: Cabecalho, meta: MetaImportacao): Pr
   // 2) válidos. O formato não traz sequência de lançamento, então NENHUMA cronologia é inventada:
   //    - ordem inicial: dataDocumento (informada pela origem) e, no empate, posição no arquivo;
   //    - linha rejeitada apenas por dependência (pai ausente ou saldo insuficiente) é reavaliada depois das demais,
-  //      até que uma rodada inteira não consiga aceitar nem decidir mais nada;
+  //      assim que uma linha é aceita (e antes das ainda não tentadas), até a fila acabar sem progresso;
   //    - assim um estorno válido libera saldo para uma reposição, em qualquer ordem do arquivo.
   //    Quando duas linhas disputam o mesmo saldo, vale a de menor (data, posição); a outra é rejeitada com motivo.
   type Item = { numero: number; bruto: unknown; registro: RegistroValido };
-  let fila: Item[] = itens
+  const fila: Item[] = itens
     .flatMap((it) => (it.v.ok ? [{ numero: it.numero, bruto: it.bruto, registro: it.v.registro }] : []))
     .sort((a, b) => (a.registro.dataDocumento < b.registro.dataDocumento ? -1 : a.registro.dataDocumento > b.registro.dataDocumento ? 1 : a.numero - b.numero));
 
@@ -178,25 +178,25 @@ async function executar(c: PoolClient, cab: Cabecalho, meta: MetaImportacao): Pr
     }
   };
 
+  // Fila de trabalho. Uma linha adiada (só por dependência) volta à fila exatamente quando uma linha é ACEITA
+  // (só uma aceitação cria pai ou libera/consome saldo), e volta À FRENTE das linhas ainda não tentadas: as
+  // adiadas são as de menor (data, posição), então têm a primeira oportunidade sobre o saldo liberado.
+  // Termina porque cada reentrada é causada por uma aceitação (finitas) e, esgotada a fila, o que restar
+  // adiado é rejeitado em definitivo, com o motivo da última tentativa.
+  const adiadas: { it: Item; d: Desfecho }[] = [];
   while (fila.length > 0) {
-    const adiadas: { it: Item; d: Desfecho }[] = [];
-    let decididas = 0;
-    for (const it of fila) {
-      const d = await tentar(it);
-      if (d.adiavel) {
-        adiadas.push({ it, d });
-      } else {
-        await gravarLinha(it.numero, it.bruto, it.registro, d);
-        decididas += 1;
-      }
+    const it = fila.shift()!;
+    const d = await tentar(it);
+    if (d.adiavel) {
+      adiadas.push({ it, d });
+      continue;
     }
-    if (decididas === 0) {
-      // nada mais muda: as pendentes de dependência são rejeitadas definitivamente
-      for (const { it, d } of adiadas) await gravarLinha(it.numero, it.bruto, it.registro, { ...d, adiavel: false });
-      break;
+    await gravarLinha(it.numero, it.bruto, it.registro, d);
+    if (d.resultado === 'aceito' && adiadas.length > 0) {
+      fila.unshift(...adiadas.splice(0).map((a) => a.it));
     }
-    fila = adiadas.map((a) => a.it);
   }
+  for (const { it, d } of adiadas) await gravarLinha(it.numero, it.bruto, it.registro, { ...d, adiavel: false });
 
   linhas.sort((a, b) => a.numeroLinha - b.numeroLinha);
   const conta = (r: ResultadoLinha) => linhas.filter((l) => l.resultado === r).length;

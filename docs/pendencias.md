@@ -71,7 +71,7 @@
 
 ## Abertas na revisão do PR 5 (migração 0007)
 
-49. **Disputa pelo mesmo saldo no lote:** quando duas linhas não cabem juntas, vale a de menor (`dataDocumento`, posição) e a outra é rejeitada. É desempate determinístico, não cronologia da origem; o motivo da rejeição deve ser conferido por uma pessoa. A ordem real de lançamento depende de campo de sequência na origem (perguntas 5 a 7).
+49. **Disputa pelo mesmo saldo no lote:** quando duas linhas não cabem juntas, vale a de menor (`dataDocumento`, posição) e a outra é rejeitada. É desempate determinístico, não cronologia da origem; o motivo da rejeição deve ser conferido por uma pessoa. Com datas iguais, a posição no arquivo decide: reordenar o arquivo pode inverter qual reposição fica com o saldo liberado por um estorno. A ordem real de lançamento depende de campo de sequência na origem (perguntas 5 a 7).
 50. **Revogação do original com estornos:** é bloqueada; o fluxo exige revogar antes os vínculos dos estornos. Se isso for incômodo na prática, avaliar revogação em bloco com justificativa única.
 51. **Vínculos anteriores à 0007:** o gatilho vale para novos vínculos; vínculos de estorno criados antes da migração não são revalidados. Só existem em bancos de desenvolvimento criados com a 0006.
 52. **Pendência de estorno sem alocação compatível** pertence à emenda do identificador informado; o estorno continua sem vínculo até haver decisão humana (vincular à emenda correta ou ajustar a parcela do original). Não há reatribuição automática.
