@@ -84,6 +84,34 @@ export async function semearDesenvolvimento(pool: Pool): Promise<{ criado: boole
       "INSERT INTO emenda_identificador_externo (emenda_id, sistema, tipo_id, valor_id) VALUES ($1, 'fictício', 'emenda', 'FICT-EXT-001')",
       [emendaComBeneficiario.rows[0]!.id],
     );
+    const emendaId = emendaComBeneficiario.rows[0]!.id;
+    const plano = await c.query<{ id: string }>(
+      'INSERT INTO plano_trabalho (emenda_id, numero) VALUES ($1, 1) RETURNING id',
+      [emendaId],
+    );
+    const meta = await c.query<{ id: string }>(
+      "INSERT INTO meta (plano_id, ordem, descricao) VALUES ($1, 1, '[FICTÍCIO] Meta de exemplo') RETURNING id",
+      [plano.rows[0]!.id],
+    );
+    const item = await c.query<{ id: string }>(
+      "INSERT INTO item_plano (meta_id, ordem, descricao, unidade, quantidade, valor_unitario_centavos) VALUES ($1, 1, '[FICTÍCIO] Item de exemplo', 'un', 10, 50000) RETURNING id",
+      [meta.rows[0]!.id],
+    );
+    await c.query("INSERT INTO cronograma_marco (item_id, descricao, previsto_para) VALUES ($1, '[FICTÍCIO] Entrega de exemplo', '2099-06-30')", [
+      item.rows[0]!.id,
+    ]);
+    await c.query(
+      "INSERT INTO tramitacao (emenda_id, titulo, responsavel, prazo, aberta_por) VALUES ($1, '[FICTÍCIO] Etapa de exemplo', '[FICTÍCIO] Setor de exemplo', '2099-03-31', 'seed-desenvolvimento')",
+      [emendaId],
+    );
+    await c.query(
+      "INSERT INTO parecer (emenda_id, tipo, texto, autor) VALUES ($1, 'exemplo', '[FICTÍCIO] Texto de parecer de exemplo, sem valor.', 'seed-desenvolvimento')",
+      [emendaId],
+    );
+    await c.query(
+      "INSERT INTO diligencia (emenda_id, texto, prazo, aberta_por) VALUES ($1, '[FICTÍCIO] Diligência de exemplo', '2099-04-15', 'seed-desenvolvimento')",
+      [emendaId],
+    );
     return { criado: true };
   });
 }

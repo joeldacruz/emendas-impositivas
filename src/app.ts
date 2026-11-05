@@ -5,9 +5,12 @@ import { tratarErro } from './http/erros.js';
 import { rotasBancadas } from './modules/bancadas/rotas.js';
 import { rotasBeneficiarios } from './modules/beneficiarios/rotas.js';
 import { rotasCadastros } from './modules/cadastros/rotas.js';
+import { rotasDocumentos } from './modules/documentos/rotas.js';
 import { rotasEmendas } from './modules/emendas/rotas.js';
+import { rotasPlanos } from './modules/planos/rotas.js';
 import { rotasParametros } from './modules/parametros/rotas.js';
 import { rotasSaude } from './modules/saude/rotas.js';
+import { rotasTramitacao } from './modules/tramitacao/rotas.js';
 
 export function construirApp(pool: Pool, config: Pick<Config, 'LOG_LEVEL' | 'AMBIENTE'>): FastifyInstance {
   const app = Fastify({
@@ -23,5 +26,8 @@ export function construirApp(pool: Pool, config: Pick<Config, 'LOG_LEVEL' | 'AMB
   rotasBeneficiarios(app, pool);
   rotasParametros(app, pool);
   rotasEmendas(app, pool);
+  rotasPlanos(app, pool);
+  rotasTramitacao(app, pool);
+  rotasDocumentos(app, pool);
   return app;
 }

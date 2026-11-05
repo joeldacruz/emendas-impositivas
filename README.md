@@ -2,7 +2,7 @@
 
 Sistema de gestão de emendas impositivas municipais, inicialmente para a Câmara de Vereadores de Três Barras/SC.
 
-**Fase atual: Fase 4 — emendas completas.** Núcleo funcional: exercício, parlamentar, mandatos, bancadas com composição histórica, emenda com autoria (parlamentar e/ou bancada), parâmetros legais versionados (sempre pendentes até validação) e auditoria. Os demais módulos do [roadmap](docs/05-plano-de-implementacao.md) ainda não foram implementados.
+**Fase atual: Fase 5 — planos, tramitação, pareceres e documentos.** Núcleo funcional: exercício, parlamentar, mandatos, bancadas com composição histórica, emenda com autoria (parlamentar e/ou bancada), parâmetros legais versionados (sempre pendentes até validação) e auditoria. Os demais módulos do [roadmap](docs/05-plano-de-implementacao.md) ainda não foram implementados.
 
 ## Diretriz
 
@@ -83,6 +83,14 @@ Escritas exigem o cabeçalho `X-Usuario` (provisório, só para atribuir a audit
 | `POST /emendas/:id/identificadores-externos`, `DELETE .../:identificadorId` | Identificadores de outros sistemas (ex.: IPM), separados do ID interno e do número oficial |
 | `POST /emendas/:id/cadastrar` | `rascunho` → `cadastrada` (exige `versaoEsperada`) |
 | `POST /emendas/:id/cancelar` | Cancelamento lógico com `motivo`; irreversível; emenda cancelada fica congelada |
+| `GET/POST /emendas/:id/planos-trabalho`, `GET /planos-trabalho/:id` | Planos versionados (1, 2, 3…) com metas, itens e marcos; totais exatos em centavos |
+| `POST /planos-trabalho/:id/metas`, `POST /metas/:id/itens`, `POST /itens/:id/marcos` | Montagem do plano em rascunho (`DELETE /metas|itens|marcos/:id` também só em rascunho) |
+| `POST /planos-trabalho/:id/ativar` | Ativa (exige itens e total ≤ valor da emenda), congela o conteúdo e marca o vigente anterior como `substituido` |
+| `PATCH /marcos/:id` | Registra a data realizada de um marco (única edição permitida em plano vigente) |
+| `GET/POST /emendas/:id/tramitacao`, `POST /tramitacao/:id/concluir\|cancelar` | Etapas livres com responsável e prazo informados; `?referencia=AAAA-MM-DD` calcula `atrasada` |
+| `GET/POST /emendas/:id/pareceres` | Pareceres permanentes (nova opinião = novo parecer) |
+| `GET/POST /emendas/:id/diligencias`, `POST /diligencias/:id/atender\|cancelar` | Diligências; encerrar exige resposta/motivo |
+| `GET/POST /emendas/:id/documentos`, `POST /documentos/:id/classificacao` | Metadados de documentos (nome, tipo, tamanho, SHA-256); nasce `interno`; publicar exige justificativa |
 | `GET /emendas/:id/auditoria` | Eventos de auditoria da emenda (somente leitura) |
 
 Valores monetários são **inteiros em centavos** (`valorPropostoCentavos`).
