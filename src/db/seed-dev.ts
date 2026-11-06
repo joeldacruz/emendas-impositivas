@@ -1,3 +1,4 @@
+import type { PoolClient } from 'pg';
 import { criarEmenda } from '../modules/emendas/repositorio.js';
 import type { Pool } from './pool.js';
 import { comTransacao } from './transacao.js';
@@ -9,7 +10,10 @@ import { comTransacao } from './transacao.js';
 export async function semearDesenvolvimento(pool: Pool): Promise<{ criado: boolean }> {
   return comTransacao(pool, { usuario: 'seed-desenvolvimento', origem: 'seed' }, async (c) => {
     const existente = await c.query("SELECT 1 FROM parlamentar WHERE nome LIKE '[FICTÍCIO]%' LIMIT 1");
-    if (existente.rowCount) return { criado: false };
+    if (existente.rowCount) {
+      await garantirIdentificadorSimulado(c);
+      return { criado: false };
+    }
 
     const ex = await c.query<{ id: string }>(
       'INSERT INTO exercicio (ano) VALUES (2099) ON CONFLICT (ano) DO UPDATE SET ano = EXCLUDED.ano RETURNING id',
@@ -112,6 +116,18 @@ export async function semearDesenvolvimento(pool: Pool): Promise<{ criado: boole
       "INSERT INTO diligencia (emenda_id, texto, prazo, aberta_por) VALUES ($1, '[FICTÍCIO] Diligência de exemplo', '2099-04-15', 'seed-desenvolvimento')",
       [emendaId],
     );
+    await garantirIdentificadorSimulado(c);
     return { criado: true };
   });
+}
+
+/** Identificador da emenda FICT-001 na origem SIMULADA usada pelos lotes de exemplo (exemplos/importacao-financeira). Idempotente. */
+async function garantirIdentificadorSimulado(c: PoolClient) {
+  await c.query(
+    `INSERT INTO emenda_identificador_externo (emenda_id, sistema, tipo_id, valor_id)
+     SELECT e.id, 'SIMULADO-FICTICIO', 'emenda', 'FIC-EMD-001'
+       FROM emenda e JOIN exercicio x ON x.id = e.exercicio_id
+      WHERE e.numero_oficial = 'FICT-001' AND x.ano = 2099
+     ON CONFLICT DO NOTHING`,
+  );
 }

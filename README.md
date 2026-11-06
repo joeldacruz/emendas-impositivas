@@ -2,7 +2,7 @@
 
 Sistema de gestão de emendas impositivas municipais, inicialmente para a Câmara de Vereadores de Três Barras/SC.
 
-**Fase atual: Fase 5 — planos, tramitação, pareceres e documentos.** Núcleo funcional: exercício, parlamentar, mandatos, bancadas com composição histórica, emenda com autoria (parlamentar e/ou bancada), parâmetros legais versionados (sempre pendentes até validação) e auditoria. Os demais módulos do [roadmap](docs/05-plano-de-implementacao.md) ainda não foram implementados.
+**Fase atual: Fase 6A — importação financeira SIMULADA (sem conexão com a IPM).** Antes: Fase 5 — planos, tramitação, pareceres e documentos. Núcleo funcional: exercício, parlamentar, mandatos, bancadas com composição histórica, emenda com autoria (parlamentar e/ou bancada), parâmetros legais versionados (sempre pendentes até validação) e auditoria. Os demais módulos do [roadmap](docs/05-plano-de-implementacao.md) ainda não foram implementados.
 
 ## Diretriz
 
@@ -103,6 +103,43 @@ curl -X POST http://127.0.0.1:3100/emendas \
   -d '{"exercicioId":"<uuid>","tipo":"individual","objeto":"Exemplo","valorPropostoCentavos":134550,"autores":["<uuid>"]}'
 ```
 
+## Importação financeira simulada (Fase 6A)
+
+Núcleo de importação da execução orçamentária e financeira, **só com dados fictícios** e **sem qualquer conexão com a IPM**. O formato é nosso ([formato-importacao-v1](docs/integracao-ipm/formato-importacao-v1.md)), não um layout oficial. A carga e as decisões de vínculo são feitas por **comando local** (não há rota de escrita, pois a autenticação ainda está pendente); a API só tem a consulta por emenda, somente leitura. O banco recusa lotes cuja origem não comece com `SIMULADO-`, e os comandos recusam `AMBIENTE=producao`.
+
+Fluxo completo (use os arquivos de [exemplos/importacao-financeira](exemplos/importacao-financeira)):
+
+```bash
+npm run migrate && npm run seed                       # cria a emenda FICT-001 com o identificador FIC-EMD-001
+npm run importar -- exemplos/importacao-financeira/lote-ficticio-01.json --usuario seu.nome
+npm run importar -- exemplos/importacao-financeira/lote-ficticio-01.json --usuario seu.nome   # reimportação: nada duplica
+npm run importar -- exemplos/importacao-financeira/lote-ficticio-02-com-problemas.json --usuario seu.nome   # rejeições, divergência, sem vínculo
+npm run importar -- <arquivo> --usuario seu.nome --somente-validar   # roda tudo e desfaz (nada é gravado)
+```
+
+```bash
+npm run financeiro -- pendencias                      # pendências abertas (divergência de origem e movimento sem vínculo)
+npm run financeiro -- movimentos --sem-vinculo        # movimentos com saldo não alocado
+npm run financeiro -- vincular --movimento <id> --emenda <id> [--valor <centavos>] --justificativa "..." --usuario seu.nome
+npm run financeiro -- revogar --vinculo <id> --motivo "..." --usuario seu.nome
+npm run financeiro -- resolver --pendencia <id> --resolucao "..." --usuario seu.nome   # só divergência, após conferência
+npm run financeiro -- consulta --emenda <id>          # o mesmo que a rota abaixo
+curl http://127.0.0.1:3100/emendas/<id>/execucao-financeira
+```
+
+Regras principais:
+
+- **Escopo da chave:** `(origem, exercício, unidade gestora, chaveOrigem)`; a mesma chave em outro exercício ou unidade é outro movimento.
+- **Idempotência:** mesma chave e mesmo conteúdo (SHA-256 do conteúdo normalizado) = ignorado. Mesma chave com conteúdo diferente = o registro anterior é **preservado** e abre-se pendência de conferência (uma só por conteúdo divergente).
+- **Rejeição por linha, com motivo:** formato, tipo, pai inexistente ou de tipo errado, datas incoerentes (inclusive movimento posterior à data de referência do lote, checado antes de decidir se é duplicata) e saldos da cadeia (liquidação ≤ empenho; pagamento ≤ liquidação líquida; estornos ≤ original). As demais linhas do lote são consolidadas.
+- **Ordem do lote:** o formato não traz sequência de lançamento e ela não é inventada: processa-se por `dataDocumento` e, no empate, pela posição no arquivo; linha rejeitada só por dependência (pai ou saldo) é adiada e volta à fila, à frente das ainda não tentadas, sempre que outra linha é aceita (sem progresso, é rejeitada). Assim um estorno válido libera saldo para uma reposição no mesmo lote. Disputa pelo mesmo saldo: vale a de menor (data, posição), a outra é rejeitada com motivo.
+- **Vínculo com emenda:** automático **somente** pelo `identificadorEmenda` previamente cadastrado como identificador externo (`sistema = origem`, `tipoId = emenda`); nunca por credor ou coincidência de valores. Sem vínculo, o movimento fica **pendente**. Vínculo manual exige justificativa; rateio entre emendas com soma ≤ valor do movimento (garantido no banco, inclusive sob concorrência); vínculo errado é revogado, nunca apagado. **Estorno só abate a parcela do original alocada à mesma emenda** (sem alocação compatível: o estorno fica sem vínculo e a emenda afetada recebe uma pendência); revogar o vínculo do original com estornos vinculados é bloqueado.
+- **Última carga × referência dos dados:** a consulta traz `ultimaImportacao` (a última carga) e `referenciaMaisRecenteDosDados` (que não retrocede com uma carga histórica), além de `pendenciasAbertas` da emenda.
+- **Estados distintos:** a consulta separa empenhado, liquidado e pago (brutos e líquidos de estornos) e traz `objetoEntregue` e `prestacaoDeContasAprovada` como **não apurados**: nada disso decorre de valores financeiros.
+- **Auditoria:** lote, movimentos, pendências e vínculos geram eventos (usuário e origem); eventos de vínculo aparecem em `GET /emendas/:id/auditoria`.
+
+Roteiro (núcleo simulado × conector real) e perguntas abertas sobre a rotina 45679: [investigacao-ipm](docs/integracao-ipm/investigacao-ipm.md) (seção "Fase 6") e [pendências](docs/pendencias.md) (itens 37 a 52).
+
 ## Testes e verificações
 
 Os testes usam PostgreSQL real, cada arquivo num schema isolado e descartável dentro de `TEST_DATABASE_URL`. Nunca apontam para o banco de desenvolvimento.
@@ -125,7 +162,8 @@ src/
   db/           pool, migrações, transação com contexto de auditoria, seed fictício
   http/         tratamento de erros e contexto do usuário
   modules/      emendas, cadastros, saude (monólito modular)
-  scripts/      migrate, seed-dev
+  scripts/      migrate, seed-dev, importar-financeiro, financeiro
+exemplos/       lotes FICTÍCIOS de importação financeira
 db/migrations/  SQL versionado (não edite arquivos já aplicados)
 test/           testes de persistência, integridade, auditoria e API
 docs/           fundação documental, ADRs e investigação IPM
@@ -149,6 +187,8 @@ Esta fase **não inclui deploy**. Para produção: use `npm run build`, `npm run
 | [docs/juridico/matriz-requisitos-juridicos.md](docs/juridico/matriz-requisitos-juridicos.md) | Matriz de validação jurídica |
 | [docs/adr/0001-principios-tecnicos.md](docs/adr/0001-principios-tecnicos.md) | Princípios técnicos |
 | [docs/adr/0002-stack-typescript-postgresql.md](docs/adr/0002-stack-typescript-postgresql.md) | Stack e monólito modular |
+| [docs/adr/0003-importacao-financeira-simulada.md](docs/adr/0003-importacao-financeira-simulada.md) | Decisões do núcleo simulado de importação |
+| [docs/integracao-ipm/formato-importacao-v1.md](docs/integracao-ipm/formato-importacao-v1.md) | Formato interno de importação (v1), resultados e exemplo |
 | [docs/pendencias.md](docs/pendencias.md) | Lacunas e perguntas em aberto |
 
 ## Convenções

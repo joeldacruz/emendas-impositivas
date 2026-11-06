@@ -1,0 +1,16 @@
+{
+  "formato": "emendas-impositivas/importacao-financeira",
+  "versao": 1,
+  "origem": "SIMULADO-FICTICIO",
+  "exercicio": 2099,
+  "unidadeGestora": "UG-FICTICIA-01",
+  "dataReferencia": "2099-06-30",
+  "registros": [
+    { "tipo": "empenho", "chaveOrigem": "EMP-0001", "numero": "1", "exercicioDocumento": 2099, "dataDocumento": "2099-02-10", "valorCentavos": 600000, "dotacao": "[FICTÍCIO] dotação de exemplo A", "credorNome": "[FICTÍCIO] Fornecedor Exemplo Ltda.", "identificadorEmenda": "FIC-EMD-001" },
+    { "tipo": "liquidacao", "chaveOrigem": "LIQ-0001", "registroPaiChave": "EMP-0001", "numero": "1", "exercicioDocumento": 2099, "dataDocumento": "2099-03-05", "valorCentavos": 400000, "credorNome": "[FICTÍCIO] Fornecedor Exemplo Ltda.", "identificadorEmenda": "FIC-EMD-001" },
+    { "tipo": "pagamento", "chaveOrigem": "PAG-0001", "registroPaiChave": "LIQ-0001", "numero": "1", "exercicioDocumento": 2099, "dataDocumento": "2099-03-20", "valorCentavos": 250000, "credorNome": "[FICTÍCIO] Fornecedor Exemplo Ltda.", "identificadorEmenda": "FIC-EMD-001" },
+    { "tipo": "estorno_pagamento", "chaveOrigem": "ESTPAG-0001", "registroPaiChave": "PAG-0001", "numero": "1", "exercicioDocumento": 2099, "dataDocumento": "2099-04-02", "valorCentavos": 50000, "identificadorEmenda": "FIC-EMD-001" },
+    { "tipo": "estorno_liquidacao", "chaveOrigem": "ESTLIQ-0001", "registroPaiChave": "LIQ-0001", "numero": "1", "exercicioDocumento": 2099, "dataDocumento": "2099-04-10", "valorCentavos": 100000, "identificadorEmenda": "FIC-EMD-001" },
+    { "tipo": "empenho", "chaveOrigem": "EMP-0002", "numero": "2", "exercicioDocumento": 2099, "dataDocumento": "2099-02-20", "valorCentavos": 300000, "dotacao": "[FICTÍCIO] dotação de exemplo B", "credorNome": "[FICTÍCIO] Outro Fornecedor Exemplo" }
+  ]
+}

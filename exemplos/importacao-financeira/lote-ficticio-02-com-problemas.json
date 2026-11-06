@@ -1,0 +1,16 @@
+{
+  "formato": "emendas-impositivas/importacao-financeira",
+  "versao": 1,
+  "origem": "SIMULADO-FICTICIO",
+  "exercicio": 2099,
+  "unidadeGestora": "UG-FICTICIA-01",
+  "dataReferencia": "2099-07-31",
+  "registros": [
+    { "tipo": "empenho", "chaveOrigem": "EMP-0001", "numero": "1", "exercicioDocumento": 2099, "dataDocumento": "2099-02-10", "valorCentavos": 600000, "dotacao": "[FICTÍCIO] dotação de exemplo A", "credorNome": "[FICTÍCIO] Fornecedor Exemplo Ltda.", "identificadorEmenda": "FIC-EMD-001" },
+    { "tipo": "empenho", "chaveOrigem": "EMP-0002", "numero": "2", "exercicioDocumento": 2099, "dataDocumento": "2099-02-20", "valorCentavos": 350000, "dotacao": "[FICTÍCIO] dotação de exemplo B", "credorNome": "[FICTÍCIO] Outro Fornecedor Exemplo" },
+    { "tipo": "liquidacao", "chaveOrigem": "LIQ-0099", "registroPaiChave": "EMP-0001", "numero": "99", "exercicioDocumento": 2099, "dataDocumento": "2099-05-05", "valorCentavos": 999999, "identificadorEmenda": "FIC-EMD-001" },
+    { "tipo": "pagamento", "chaveOrigem": "PAG-0098", "registroPaiChave": "LIQ-INEXISTENTE", "dataDocumento": "2099-05-06", "valorCentavos": 1000 },
+    { "tipo": "empenho", "chaveOrigem": "EMP-0003", "dataDocumento": "2099-13-45", "valorCentavos": 12.5 },
+    { "tipo": "empenho", "chaveOrigem": "EMP-0004", "numero": "4", "exercicioDocumento": 2099, "dataDocumento": "2099-05-10", "valorCentavos": 80000, "identificadorEmenda": "FIC-EMD-INEXISTENTE" }
+  ]
+}

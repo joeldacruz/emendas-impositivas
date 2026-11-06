@@ -17,6 +17,8 @@
     "migrate": "tsx src/scripts/migrate.ts",
     "migrate:prod": "node dist/scripts/migrate.js",
     "seed": "tsx src/scripts/seed-dev.ts",
+    "importar": "tsx src/scripts/importar-financeiro.ts",
+    "financeiro": "tsx src/scripts/financeiro.ts",
     "check": "npm run typecheck && npm run lint && npm test && npm run build"
   },
   "repository": {

@@ -88,3 +88,28 @@ Referência documental, não comprovação de API nem do estado atual. Arquivos 
 | Anexos | `anexo_referencia` |
 | Identificador da emenda | `emenda_identificador_externo` |
 | Data de referência / sincronização | `registro_financeiro.data_referencia/sincronizado_em` |
+
+## Fase 6 — núcleo simulado (6A) e conector real (6B)
+
+**6A — entregue em PR, sem depender da IPM.** Importação do formato interno v1 ([formato-importacao-v1](formato-importacao-v1.md)) com dados fictícios; idempotência, pendências, vínculo, rateio, consulta por emenda e auditoria. Não conecta à IPM, não usa endpoint, não raspa o portal e não presume layout.
+
+**6B — conector real, bloqueado até haver:**
+1. resposta da IPM às perguntas 1 a 13 (documento [docs/investigacao-ipm.md](../investigacao-ipm.md)) e escolha da modalidade em ADR;
+2. permissão formal da Câmara/Prefeitura e amostra anonimizada/autorizada guardada fora do repositório;
+3. autenticação e papéis no sistema (a importação hoje é por comando local);
+4. mapeamento campo a campo da origem para o formato interno e relatório de viabilidade;
+5. migração própria que remova a trava de origem `SIMULADO-`.
+
+### Questões abertas sobre a rotina 45679 (relevantes para a 6B)
+
+| # | Questão | Por que importa ao núcleo |
+|---|---|---|
+| 45679-1 | **Chaves oficiais:** qual identificador estável identifica empenho, liquidação e pagamento (número + exercício + unidade? código interno?) | A chave interna `(origem, exercício, unidade gestora, chaveOrigem)` é uma hipótese; a real pode ter composição diferente (ex.: numeração reiniciada por entidade) |
+| 45679-2 | **Estornos:** estorno é registro próprio ligado ao original, ou altera/anula o original? Estorno parcial? Como referencia o pai? | O núcleo assume estorno como registro próprio de valor positivo ligado ao pai (perguntas 6 e 7) |
+| 45679-3 | **Restos a pagar:** entram na rotina? Mantêm a chave do exercício de origem? Como é a inscrição e o cancelamento? | O núcleo rejeita documento de exercício diferente do lote: não há suporte a restos a pagar |
+| 45679-4 | **Reforço, anulação, complementação, subempenho:** como são representados? | Fora do núcleo; hoje só os 5 tipos básicos existem |
+| 45679-5 | **Exportação ou API:** existe exportação de arquivo, relatório estruturado ou API? Quais limites, janela e periodicidade? | Define o conector (cenários A a D) e a frequência de carga |
+| 45679-6 | **Identificação da emenda:** a rotina informa a emenda em cada movimento? Em qual campo e formato? | O vínculo automático só usa `identificadorEmenda`; sem ele tudo fica pendente |
+| 45679-7 | **Rateio na origem:** um movimento pode atender mais de uma emenda? Como é informado? | O núcleo permite rateio manual com soma ≤ valor; a origem pode já trazer a divisão |
+| 45679-8 | **Correções na origem:** a IPM altera registros já emitidos (retificação)? Como se distingue retificação de erro? | Hoje conteúdo diferente = pendência, nunca sobrescrita |
+| 45679-9 | **Dados do credor:** quais campos estão disponíveis e podem ser tratados (LGPD)? | O núcleo guarda só o nome do credor (fictício) e não o expõe na consulta |

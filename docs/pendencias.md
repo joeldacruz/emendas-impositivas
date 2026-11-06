@@ -53,3 +53,25 @@
 
 35. **Auditoria da cadeia do plano:** metas, itens e marcos passaram a registrar `emenda_id` (resolvido pela cadeia marco → item → meta → plano → emenda) e um CHECK `NOT VALID` exige isso para novos eventos. Eventos gerados *antes* da 0005 ficam com `emenda_id` nulo, pois a auditoria é append-only e não pode ser corrigida; só existem em bancos de desenvolvimento/homologação criados com a 0004 — sem produção, nada a migrar. Se algum ambiente tiver dados reais, decidir com a Câmara se vale um procedimento controlado de reparo.
 36. **Valor da emenda x plano vigente:** reduzir `valor_proposto_centavos` abaixo do total do plano vigente é rejeitado pelo banco (422 na API; valor, versão e plano permanecem). A trava cobre a concorrência com a ativação do plano. Aumentar o valor nunca é bloqueado. Planos em rascunho ou substituídos não bloqueiam a redução, mas um rascunho acima do novo valor só poderá ser ativado depois de ajustado.
+
+## Abertas na Fase 6A (importação financeira simulada)
+
+37. **Núcleo simulado × conector real:** tudo na 6A usa origem `SIMULADO-*` e dados fictícios; o conector real (6B) está bloqueado até haver contrato de dados da IPM, permissão da Câmara/Prefeitura e autenticação. Roteiro em `docs/integracao-ipm/investigacao-ipm.md`.
+38. **Rotina 45679 — questões abertas:** chaves oficiais de empenho/liquidação/pagamento; representação de estornos; restos a pagar; reforço, anulação e complementação; existência de exportação ou API; identificação da emenda; rateio na origem; retificações; dados do credor (tabela 45679-1 a 45679-9 na investigação). Nada foi enviado à IPM.
+39. **Restos a pagar:** não suportados. Registro com `exercicioDocumento` diferente do exercício do lote é rejeitado com esse motivo.
+40. **Tipos de movimento:** só empenho, liquidação, pagamento e os dois estornos. Reforço, anulação, complementação, subempenho e movimentos de restos dependem das respostas 6 a 8.
+41. **Divergência só é "conferida", não "aceita":** a pendência se encerra com justificativa, mas o movimento anterior continua valendo. Aceitar o conteúdo novo exige versionar o movimento (nova versão, histórico, impacto em vínculos e totais) — decisão e desenho pendentes.
+42. **Herança de vínculo:** liquidações, pagamentos e estornos não herdam o vínculo do empenho; cada movimento é vinculado individualmente (pelo identificador ou manualmente). Decidir se a referência estrutural ao pai basta para propagar o vínculo.
+43. **Pendência "sem vínculo" fecha no primeiro vínculo:** o saldo ainda não alocado continua visível em `movimentos` e na consulta, mas sem pendência. Definir se todo movimento deve ser integralmente alocado a emendas.
+44. **Sem autenticação:** `--usuario` é só um nome informado na linha de comando para a auditoria; não há papéis para importar, vincular, revogar ou resolver pendências. A carga fica em comando local por isso; abrir rota exige autenticação e papéis.
+45. **Credor:** só o nome (fictício) é guardado e não é exposto na consulta. Documento do credor não foi modelado (LGPD, resposta 9). O `payload` original é preservado integralmente; com dados reais, definir retenção e minimização.
+46. **Consistência da cadeia não é regra jurídica:** liquidação ≤ empenho, pagamento ≤ liquidação líquida e estornos ≤ original são conferências contábeis simples, que podem precisar de ajuste conforme a origem real (ex.: ordem de lançamento). Não há comparação com o valor da emenda nem bloqueio por execução acima do proposto — isso depende de norma validada.
+47. **Retenção das tentativas:** cada importação grava um lote e uma linha por registro (inclusive reimportações), imutáveis. Falta política de retenção/arquivamento.
+48. **Validação local:** a Fase 6A foi verificada com PostgreSQL **embarcado** (porta 5433), separadamente do CI (PostgreSQL 16 em serviço do GitHub Actions). O `docker compose` continua sem teste em máquina com Docker.
+
+## Abertas na revisão do PR 5 (migração 0007)
+
+49. **Disputa pelo mesmo saldo no lote:** quando duas linhas não cabem juntas, vale a de menor (`dataDocumento`, posição) e a outra é rejeitada. É desempate determinístico, não cronologia da origem; o motivo da rejeição deve ser conferido por uma pessoa. Com datas iguais, a posição no arquivo decide: reordenar o arquivo pode inverter qual reposição fica com o saldo liberado por um estorno. A ordem real de lançamento depende de campo de sequência na origem (perguntas 5 a 7).
+50. **Revogação do original com estornos:** é bloqueada; o fluxo exige revogar antes os vínculos dos estornos. Se isso for incômodo na prática, avaliar revogação em bloco com justificativa única.
+51. **Vínculos anteriores à 0007:** o gatilho vale para novos vínculos; vínculos de estorno criados antes da migração não são revalidados. Só existem em bancos de desenvolvimento criados com a 0006.
+52. **Pendência de estorno sem alocação compatível** pertence à emenda do identificador informado; o estorno continua sem vínculo até haver decisão humana (vincular à emenda correta ou ajustar a parcela do original). Não há reatribuição automática.

@@ -27,8 +27,14 @@ Emenda com ID interno, número oficial, identificadores externos, autoria múlti
 Plano de trabalho, metas, itens, cronogramas; pareceres, diligências, prazos; classificação de publicidade.
 
 ## Fase 6 — Integração IPM (conforme viabilidade)
-Staging, lotes, carga idempotente, vinculação, rateio, conciliação, pendências. Conector conforme a modalidade encontrada na Fase 1.
-**Aceite:** reimportação não duplica; estornos preservados; divergência gera pendência.
+Dividida em duas partes. O núcleo não depende de resposta da IPM; o conector, sim.
+
+### Fase 6A — Núcleo simulado (entregue em PR; aguardando revisão)
+Formato interno versionado, lotes, resultado por linha, movimentos (empenho, liquidação, pagamento, estornos), carga idempotente, pendência de divergência, vínculo com emenda, rateio, consulta por emenda e auditoria. Somente dados fictícios, importação por comando local.
+**Aceite:** reimportação não duplica; estornos preservados; divergência gera pendência; movimento sem vínculo fica pendente; rateio não passa do valor; dados de uma emenda não aparecem em outra.
+
+### Fase 6B — Conector real (BLOQUEADA)
+Só começa com contrato de dados confirmado pela IPM, acesso autorizado pela Câmara/Prefeitura e autenticação do sistema. Traduz a origem para o formato interno, remove a trava de origem `SIMULADO-` por migração própria e ADR, trata restos a pagar, reforços/anulações/complementações e conciliação com e-Sfinge. Ver [roteiro](integracao-ipm/investigacao-ipm.md).
 
 ## Fase 7 — Execução física e prestação de contas
 Entrega do objeto, prestação, análise e resultado, com os cinco estados distintos no painel.
